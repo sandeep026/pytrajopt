@@ -13,7 +13,7 @@ $u,u_{l},u_{u} \in \mathbb{R}^{N_u}   $
 
 ## Numerical solution
 
-An analytical solution is not possible to derive in every case of an optimal control problem. Numerical methods are widely used to solve them. The solver uses direct methods where the continuos time optimal control problem is discretized and then optimized. This will be reffered to as transctiption of the optimal control problem.
+ It is not possible to derive an analytical solution in every case of an optimal control problem. Numerical methods are widely used to solve them. The solver uses direct methods where the continuos time optimal control problem is discretized and then optimized. This will be reffered to as transctiption of the optimal control problem.
 
 The following discretization schemes are supported by the solver.
 
