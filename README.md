@@ -19,11 +19,25 @@ The following discretization schemes are supported by the solver.
 
 ### Differentiation
 
-1. Euler forward
-2. Euler backward
-3. Heun's method
-4. Runge Kutta 45
-5. Trapezoidal collocation
+#### Euler forward
+
+$$x_{k+1}-x_k=f(x_k,u_k)=f_k$$
+
+#### Euler backward
+
+$$x_{k+1}-x_k=f(x_{k+1},u_{k+1})=f_{k+1}$$
+
+#### Heun's method
+
+$$x_{k+1}-x_k=\frac{1}{2}(f(x_{k},u_{k})+f(x_{k+1},u_{k+1}))=\frac{1}{2}(f_k+f_{k+1})$$
+
+#### Runge Kutta 45
+
+
+#### Trapezoidal collocation
+
+
+
 6. Hermite simpson collocation
 7. LGL pseudospectral collocation
 

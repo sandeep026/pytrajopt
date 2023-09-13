@@ -104,6 +104,11 @@ class opt_dynamics:
             # euler backward
             k=dt*self.xdot(x2,u)
         elif opt=="Heun":
+            # Heun's method
+            k1=self.xdot(x1,u)
+            k2=self.xdot(x1+k1*dt,u)
+            k=0.5*(k1+k2)*dt
+        elif opt=="Trap":
             # Heun
             k=0.5*dt*(self.xdot(x1,u)+self.xdot(x2,u))
         elif opt=="RK45":
