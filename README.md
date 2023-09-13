@@ -4,7 +4,7 @@
 
 The solver attemps to solve the following type of optimal control problem. Point to point trajectories which are optimal and within the constraints are computed.
 
-$$J(x,u)=\int^{t_0}_{t_f}L(x,u)\mathrm{d}t$$ $$x(0)=x_0,~x(t_f)=x_f$$ $$\dot{x}=f(x,u)$$ $$x_l\leq  x \leq x_u$$ $$u_l\leq  x \leq u_u$$
+$$J(x,u)=\int_{t_0}^{t_f}L(x,u)\mathrm{d}t$$ $$x(0)=x_0,~x(t_f)=x_f$$ $$\dot{x}=f(x,u)$$ $$x_l\leq  x \leq x_u$$ $$u_l\leq  x \leq u_u$$
 
 where, 
 $t_0,t_f,L(x,u) \in \mathbb{R}$
@@ -33,52 +33,87 @@ $$x_{k+1}-x_k=\frac{1}{2}(f(x_{k},u_{k})+f(x_{k+1},u_{k+1}))=\frac{1}{2}(f_k+f_{
 
 #### Runge Kutta 45
 
+$$
+\begin{aligned}
+  k_1&=f(x_k,u_k)  \\
+  k_2&=f(x_k+\frac{1}{2}hk_1,u_k)\\
+  k_3&=f(x_k+\frac{1}{2}hk_2,u_k)\\
+  k_4&=f(x_k+k_3h,u_k)\\
+  x_{k+1}-x_k&=\frac{1}{6}h(k_1+2k_2+2k_3+k_4)
+\end{aligned}
+$$
 
 #### Trapezoidal collocation
 
+$$x_{k+1}-x_k=\frac{1}{2}(f(x_k,u_k)+f(x_{k+1},u_{k+1}))=\frac{1}{2}h(f_k+f_{k+1})$$
 
+#### Hermite simpson collocation
 
-6. Hermite simpson collocation
-7. LGL pseudospectral collocation
+$$
+\begin{aligned}
+x_c&=\frac{1}{2}(x_k+x_{k+1})+\frac{1}{8}h(f(x_k,u_k)-f(x_{k+1},u_{k+1}))\\
+u_c&=\frac{1}{2}(u_k+u_{k+1})\\
+x_{k+1}-x_k&=\frac{1}{6}h(f(x_k,u_k)+4f(x_c,u_c)+f(x_{k+1},u_{k+1}))
+\end{aligned}
+$$
+
+#### LGL pseudospectral collocation
+
+$$\sum_{i=1}^{N+1}D_{k,i}x_i=f(x_k,u_k)$$
 
 ### Integration
 
-1. Riemann sum
-2. Trapezoidal
-3. LGL quadrature
+#### Riemann sum
+
+$$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} L(x_k,u_k)h$$
+
+#### Trapezoidal
+
+$$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} \frac{1}{2}h(L(x_k,u_k)+L(x_{k+1},u_{k+1}))$$
+
+#### LGL quadrature
+
+$$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} w_kL(x_k,u_k)$$
 
 ## NLP solver
 
-1. IPOPT
-2. Custom solvers
-3. Scipy solvers
+### IPOPT
 
-## Derivatives
-
-1. Automatic differentiation
-2. Finite difference
-
-## Decision variable order
-
-1. State, control pairs
-2. State and control
-
-### Sparsity
-
-Depends on
-
-1. Decision vector order
-2. Discretization method
-
-## Custom solver
+A off-the-shelf solver using interior point method for NLP.
+ 
+### Custom solvers
 
 Generate optimization object for the given OCP which can be interface with any NLP solver.
 
-Objective should include
+Object should include
 
 1. Objective function
 2. Inequality and equality constraints
 3. gradient, Jacobian and Hessian
+4. To make tailored solver for the NLP
+
+### Scipy solvers
+
+Yet to be explored
+
+## Derivatives
+
+### Automatic differentiation
+
+Derivatives are computed by differenting machine code and they are accurate as hand written derivatives. The functions must be differentiable and software availability promotes its usage.
+
+### Finite difference
+
+Based on Taylor series approximation, where 1st order terms are only considered. Most commonly used method to compute derivatives and works on black box model. They are limited due to approximation and numerical errors.
+
+## Sparsity
+
+Depends on
+
+1. Decision vector order
+    1. State, control pairs
+    2. State and control
+2. Discretization method
 
 ## Guess generation
 
@@ -89,6 +124,9 @@ A good guess to solver must satisfy,
 2. respect the dynamics
 
 A feasible guess can lead to higher success rates while the solver iterates.
+
+## Error
+Discretization error needs to be computed
 
 ## Grid convergence
 
@@ -101,3 +139,6 @@ The solution obtained from the NLP solver is interpolated and plotted.
 ## Analytical comparison
 
 If analytical solution is available, it must be compared.
+
+
+##  Solution and plots to be saved
