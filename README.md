@@ -60,7 +60,7 @@ Depends on
 
 Generate optimization object for the given OCP which can be interface with any NLP solver.
 
-Object should include
+Objective should include
 
 1. Objective function
 2. Inequality and equality constraints
