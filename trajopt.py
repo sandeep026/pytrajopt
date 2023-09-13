@@ -109,7 +109,7 @@ class opt_dynamics:
             k2=self.xdot(x1+k1*dt,u)
             k=0.5*(k1+k2)*dt
         elif opt=="Trap":
-            # Heun
+            # trapezoidal collocation
             k=0.5*dt*(self.xdot(x1,u)+self.xdot(x2,u))
         elif opt=="RK45":
             # RK45
