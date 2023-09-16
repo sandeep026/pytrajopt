@@ -24,14 +24,6 @@ $t_k=[t_0+(k-1)(t_f-t_0)/N]$. On this grid, the numerical differentiation and in
 
 ![grid](timegrid.drawio.svg)
 
-#### Pseudospectral collocation
-
-An exception is the pseudospectral collocation method where a non-uniform grid clustered at the end points is used. It allows Runge phenomenon to be avoided for global polynomials of higher degree.
-
-Let $\tau_k$ is the kth LGL collocation point and they are mapped to the physical time  domain as $t=\frac{(t_f-t_0)}{2}\tau+\frac{(t_f+t_0)}{2}$.
-
-![grid](timegridPS.drawio.svg)
-
 ### Numerical integration
 
 #### Riemann sum
@@ -45,12 +37,6 @@ $$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} hL(x_k,u_k)$$
 The integrand is assumed to be a piecewise-linear function. Over each interval, the area of the trapezoid is computed and summed over to compute the integral. Compared to the Riemann sum, it required an additional function evaluation and more expensive.
 
 $$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} \frac{1}{2}h(L(x_k,u_k)+L(x_{k+1},u_{k+1}))$$
-
-#### LGL quadrature
-
-Over the non-uniform grid, a global polynomial approximation is used for the integrand. From LGL theory, integrating the polynomial simplifies to the following quadrature rule where weighted sum of the integrand at the collocation points is computed.
-
-$$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} w_kL(x_k,u_k)$$
 
 ### Differentiation
 
@@ -98,12 +84,6 @@ u_c&=\frac{1}{2}(u_k+u_{k+1})\\
 x_{k+1}-x_k&=\frac{1}{6}h(f(x_k,u_k)+4f(x_c,u_c)+f(x_{k+1},u_{k+1}))
 \end{aligned}
 $$
-
-#### LGL pseudospectral collocation
-
-The state and control is approximated using a global polynomial which passes through the collocation points. The derivative of global polynomial is computed and evaluated at the collocation points, which is made to match the slope.
-
-$$\sum_{i=1}^{N+1}D_{k,i}x_i=f(x_k,u_k)$$
 
 ## State and control parameterization
 
@@ -195,3 +175,23 @@ Depends on
     1. State, control pairs
     2. State and control
 2. Discretization method
+
+#### Pseudospectral collocation
+
+An exception is the pseudospectral collocation method where a non-uniform grid clustered at the end points is used. It allows Runge phenomenon to be avoided for global polynomials of higher degree.
+
+Let $\tau_k$ is the kth LGL collocation point and they are mapped to the physical time  domain as $t=\frac{(t_f-t_0)}{2}\tau+\frac{(t_f+t_0)}{2}$.
+
+![grid](timegridPS.drawio.svg)
+
+#### LGL pseudospectral collocation
+
+The state and control is approximated using a global polynomial which passes through the collocation points. The derivative of global polynomial is computed and evaluated at the collocation points, which is made to match the slope.
+
+$$\sum_{i=1}^{N+1}D_{k,i}x_i=f(x_k,u_k)$$
+
+#### LGL quadrature
+
+Over the non-uniform grid, a global polynomial approximation is used for the integrand. From LGL theory, integrating the polynomial simplifies to the following quadrature rule where weighted sum of the integrand at the collocation points is computed.
+
+$$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} w_kL(x_k,u_k)$$
