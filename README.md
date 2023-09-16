@@ -8,8 +8,8 @@ $$J(x,u)=\int_{t_0}^{t_f}L(x,u)\mathrm{d}t$$ $$x(t_0)=x_0,~x(t_f)=x_f$$ $$\dot{x
 
 where,
 $t_0,t_f,L(x,u) \in \mathbb{R}$
-$ x,x_0,x_f,x_{l},x_{u}, f \in \mathbb{R}^{N_x}$
-$u,u_{l},u_{u} \in \mathbb{R}^{N_u}   $
+$ x,x_0,x_f,x_l,x_u,f \in \mathbb{R}^{N_x}$
+$u,u_{l},u_{u} \in \mathbb{R}^{N_u}$
 
 ## Numerical solution
 
