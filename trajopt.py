@@ -52,25 +52,33 @@ class opt_problem:
 
 class opt_obj:
 
-    def __init__(self,Nx,Nu,N,dt,X,U):
-        self.obj=self.objective(Nx,Nu,N,dt,X,U)
+    def __init__(self,Nx,Nu,N,dt,X,U,int_op):
+        self.obj=self.objective(Nx,Nu,N,dt,X,U,int_op)
 
     def L(self,x,u):
         L=u**2
         return L
     
-    def objective(self,Nx,Nu,N,dt,X,U):
+    def objective(self,Nx,Nu,N,dt,X,U,int_op):
 
         x=cs.SX.sym("x",Nx,1)
         u=cs.SX.sym("u",Nu,1)
         F=self.L(x,u)
         F=cs.Function("F",[x,u],[F])
-        F=F.map(N)
-        F=F(X[:,1:N+1],U)
-        obj=cs.dot(dt*cs.MX.ones(1,N),F)  # add a seperate method of numerical integration (riemann sum, midpoint/rectangle,trapezoidal, simpson,LGL)
-        return obj
 
-
+        if int_op=="Rie":
+            F=F.map(N)
+            F=F(X[:,1:N+1],U)
+            obj=cs.dot(dt*cs.MX.ones(1,N),F)  
+            return obj
+        elif int_op=="Trap":
+            F=F.map(N)
+            F1=F(X[:,1:N+1],U)
+            F2=F(X[:,0:N],U)
+            obj=cs.dot(dt/2*cs.MX.ones(1,N),F1+F2)  
+            return obj
+    
+        
 class opt_dynamics:
 
 
@@ -142,7 +150,7 @@ class opt_BC:
 
 OG=opt_grid(100)
 OV=opt_problem(OG.Nx,OG.Nu,OG.N)
-OO=opt_obj(OG.Nx,OG.Nu,OG.N,OG.dt,OV.X,OV.U)
+OO=opt_obj(OG.Nx,OG.Nu,OG.N,OG.dt,OV.X,OV.U,"Trap")
 OD=opt_dynamics(OG.N,OG.dt,OV.X,OV.U)
 OBC=opt_BC(OG.N,OV.X,OV.U)
 OV.OPT(OO.obj,OD.res,OBC.res_BC)
