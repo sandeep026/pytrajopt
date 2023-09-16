@@ -136,7 +136,6 @@ Discretization error needs to be computed
 PS methods- matlab to python
 discretization error computing
 example set
-Hermite simpson
 
 ---
 
