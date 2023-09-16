@@ -86,7 +86,7 @@ class opt_dynamics:
     def res(self,N,dt,X,U):
         
         for i in range(N):
-            temp=X[:,i+1]-X[:,i]-self.slope_approx(X[:,i],X[:,i],U[:,i],dt,"RK45") 
+            temp=X[:,i+1]-X[:,i]-self.slope_approx(X[:,i],X[:,i],U[:,i],dt,"Her") 
             if i==0:
                 r=temp
             else:    
@@ -118,6 +118,10 @@ class opt_dynamics:
             k3=self.xdot(x1+dt*k2/2,u)
             k4=self.xdot(x1+dt*k3,u)
             k=dt/6*(k1+2*k2+2*k3+k4)
+        elif opt=="Her":
+            xc=(x1+x2)/2+1/8*dt*(self.xdot(x1,u)-self.xdot(x2,u))
+            uc=u
+            k=dt/6*(self.xdot(x1,u)+4*self.xdot(xc,uc)+self.xdot(x2,u))
         return k    
 
 
