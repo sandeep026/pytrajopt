@@ -102,10 +102,6 @@ LGL collocation|global polynomial|global polynomial
 
 A off-the-shelf solver using interior point method for NLP.
 
-## Error
-
-Discretization error needs to be computed
-
 ## Plot and save
 
 1. The solution obtained from the NLP solver is interpolated and plotted.
@@ -113,8 +109,6 @@ Discretization error needs to be computed
 
 ## work left
 
-PS methods- matlab to python
-discretization error computing
 example set
 
 ---
@@ -195,3 +189,7 @@ $$\sum_{i=1}^{N+1}D_{k,i}x_i=f(x_k,u_k)$$
 Over the non-uniform grid, a global polynomial approximation is used for the integrand. From LGL theory, integrating the polynomial simplifies to the following quadrature rule where weighted sum of the integrand at the collocation points is computed.
 
 $$\int_{t_0}^{t_f}L(x,u)\mathrm{d}t \approx \sum_{k=1}^{N+1} w_kL(x_k,u_k)$$
+
+## Error
+
+Discretization error needs to be computed
