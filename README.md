@@ -1,4 +1,6 @@
-# Trajectory optimizer
+# pytrajopt
+
+A minimal package to solve optimal control problems in python via direct methods.
 
 ## Optimal control problem
 
