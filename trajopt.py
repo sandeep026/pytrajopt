@@ -11,72 +11,86 @@ from pydantic import (
     PositiveInt,
     field_validator,
     model_validator,
-    PrivateAttr
+    PrivateAttr,
 )
 
 
 class casadi_integrator(BaseModel):
     # provides access to casadi integrators
-    model_config=ConfigDict(arbitrary_types_allowed=True,extra='forbid')
-    plugin:Literal['cvodes','collocation','rk']='rk'
-    plugin_options:dict=Field(default_factory=dict)
-    nx:int
-    nu:int
-    path:list[cs.SX]
-    f:cs.SX
-    _scaled_ode:dict[str, cs.SX]=PrivateAttr(default_factory=dict)
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    plugin: Literal["cvodes", "collocation", "rk"] = "rk"
+    plugin_options: dict = Field(default_factory=dict)
+    nx: int
+    nu: int
+    path: list[cs.SX]
+    f: cs.SX
+    _scaled_ode: dict[str, cs.SX] = PrivateAttr(default_factory=dict)
 
-    @field_validator('path')
+    @field_validator("path")
     @classmethod
-    def check_length(cls,path):
-        if len(path)!=3:
-            raise ValueError(f't,x,u must be present in path. Recived {len(path)} expected 3')
+    def check_length(cls, path):
+        if len(path) != 3:
+            raise ValueError(
+                f"t,x,u must be present in path. Recived {len(path)} expected 3"
+            )
         return path
 
-    @field_validator('f')
+    @field_validator("f")
     @classmethod
-    def check_column(cls,f):
-        if f.shape[1]!=1:
-            raise ValueError(f'f must be a column vector but received f of shape {f.shape}')
+    def check_column(cls, f):
+        if f.shape[1] != 1:
+            raise ValueError(
+                f"f must be a column vector but received f of shape {f.shape}"
+            )
         return f
-    
 
     def __eq__(self, other):
         # If the other object is a string, check if it matches the class name
         if isinstance(other, str):
             return self.__class__.__name__ == other
-        
+
         # Fallback to standard comparison for other object types
         return super().__eq__(other)
 
     @classmethod
-    def get_scaled_dynamics(cls,path,f):
-        t0s=cs.SX.sym('t0s')
-        tfs=cs.SX.sym('tfs')
-        tau=cs.SX.sym('tau')
-        t=t0s+(tfs-t0s)*tau
-        f_scaled=(tfs-t0s)*cs.substitute(f,path[0],t)
-        ode_s={'t':tau,'x':path[1],'p':cs.vertcat(path[2],t0s,tfs),'ode':f_scaled}
+    def get_scaled_dynamics(cls, path, f):
+        t0s = cs.SX.sym("t0s")
+        tfs = cs.SX.sym("tfs")
+        tau = cs.SX.sym("tau")
+        t = t0s + (tfs - t0s) * tau
+        f_scaled = (tfs - t0s) * cs.substitute(f, path[0], t)
+        ode_s = {
+            "t": tau,
+            "x": path[1],
+            "p": cs.vertcat(path[2], t0s, tfs),
+            "ode": f_scaled,
+        }
         return ode_s
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def generate_ode_dict(self):
 
-        syms_shapes=[(1,1),(self.nx,1),(self.nu,1),(self.nx,1)]
-        syms=self.path+[self.f]
-        for name, known_shape,object in zip(['t','x','u','f'],syms_shapes,syms):
-            if object.shape!=known_shape:
-                raise ValueError(f'{name} is a {known_shape} vector but received {object.shape}')
+        syms_shapes = [(1, 1), (self.nx, 1), (self.nu, 1), (self.nx, 1)]
+        syms = self.path + [self.f]
+        for name, known_shape, object in zip(["t", "x", "u", "f"], syms_shapes, syms):
+            if object.shape != known_shape:
+                raise ValueError(
+                    f"{name} is a {known_shape} vector but received {object.shape}"
+                )
 
-        self._scaled_ode=casadi_integrator.get_scaled_dynamics(self.path,self.f)
-            
+        self._scaled_ode = casadi_integrator.get_scaled_dynamics(self.path, self.f)
+
         return self
+
 
 # fw_euler - forward Euler
 # bw_euler - backward Euler
 # trap     - trapezoidal
 # her_sim  - Hermite Simpson
-dis_methods = Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"] | casadi_integrator
+dis_methods = (
+    Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"] | casadi_integrator
+)
+
 
 class TrajOpt(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
@@ -650,14 +664,17 @@ class TrajOpt(BaseModel):
         trajopt["objective"] = objective
         trajopt["costate"] = self.get_costate(nlp.lam_g)
         if self.L is not None:
-            ham_L=self.L.map(n+1,'serial')(t,X,cs.hcat([U, U[:, -1]]))
+            ham_L = self.L.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
         else:
-            ham_L=0
-        if self.method in['bw_euler','her_sim','trap']:
-            print('Costate estimation not implemented for IRK methods')
-            trajopt['hamiltonian']=np.full(shape=(1,n+1), fill_value=np.nan)
+            ham_L = 0
+        if self.method in ["bw_euler", "her_sim", "trap"]:
+            print("Costate estimation not implemented for IRK methods")
+            trajopt["hamiltonian"] = np.full(shape=(1, n + 1), fill_value=np.nan)
         else:
-            trajopt["hamiltonian"]=ham_L+cs.sum1(trajopt['costate']*self.f.map(n+1,'serial')(t,X,cs.hcat([U, U[:, -1]])))
+            trajopt["hamiltonian"] = ham_L + cs.sum1(
+                trajopt["costate"]
+                * self.f.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
+            )
 
         return trajopt
 
@@ -677,9 +694,9 @@ class TrajOpt(BaseModel):
         elif self.method == "fw_euler":
             defect = dX - Fl * h
             return defect
-        elif self.method=='exp_mid':
-            Fm=F(0.5*(tl+tr),Xl+h/2*F(tl,Xl,U),U)
-            defect=dX-h*Fm
+        elif self.method == "exp_mid":
+            Fm = F(0.5 * (tl + tr), Xl + h / 2 * F(tl, Xl, U), U)
+            defect = dX - h * Fm
             return defect
         elif self.method == "trap":
             defect = dX - 0.5 * h * (Fl + Fr)
@@ -690,10 +707,17 @@ class TrajOpt(BaseModel):
             Fm = F(tm, Xm, U)
             defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
             return defect
-        elif self.method=='casadi_integrator':
-            phi=cs.integrator('phi',self.method.plugin,self.method._scaled_ode,0,1,self.method.plugin_options)
-            Phi=phi.map(self.n,'serial')
-            defect=Xr-Phi(x0=Xl,p=cs.vcat([U,tl,tr]))['xf']
+        elif self.method == "casadi_integrator":
+            phi = cs.integrator(
+                "phi",
+                self.method.plugin,
+                self.method._scaled_ode,
+                0,
+                1,
+                self.method.plugin_options,
+            )
+            Phi = phi.map(self.n, "serial")
+            defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
             return defect
         else:
             raise ValueError("Wrong option for method")
@@ -706,34 +730,39 @@ class TrajOpt(BaseModel):
         lam_dyn = -lam_g[ne : ne + nx * n, :]
         costate = cs.hcat([lam_x0, cs.reshape(lam_dyn, nx, n)])
         return costate
-    
-def plotting(t:np.ndarray,var:np.ndarray,name:str,pdf:PdfPages):
-    for i in range(var.shape[0]):     
-        plt.figure(figsize=(6,3))   
-        
-        if name=='u': 
-            plt.step(t.ravel()[0:-1],var[i,:].ravel())
-        else: 
+
+
+def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
+    for i in range(var.shape[0]):
+        plt.figure(figsize=(6, 3))
+
+        if name == "u":
+            plt.step(t.ravel()[0:-1], var[i, :].ravel())
+        else:
             if np.isnan(var).all():
-                print('Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler or exp_mid')
-            plt.plot(t.ravel(),var[i,:].ravel())
-        plt.ylabel(rf'${name}_{i}$')
-        plt.xlabel('time [s]')
+                print(
+                    "Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler or exp_mid"
+                )
+            plt.plot(t.ravel(), var[i, :].ravel())
+        plt.ylabel(rf"${name}_{i}$")
+        plt.xlabel("time [s]")
         pdf.savefig(bbox_inches="tight")
         plt.close()
 
-def plot_solution(sol:cs.OptiSol,nlp:dict):
-    txlam=sol.value(nlp['t'])
-    tu=txlam
-    X=sol.value(nlp['X']).reshape(nlp['X'].shape)
-    U=sol.value(nlp['U']).reshape(nlp['U'].shape)
-    lam=sol.value(nlp['costate']).reshape(nlp['costate'].shape)
-    ham=sol.value(nlp['hamiltonian']).reshape(nlp['hamiltonian'].shape)
 
-    with PdfPages('solution.pdf') as pdf:
-        for name,var in zip(['x','u',r'\lambda',r'H'],[X,U,lam,ham]):
-            t= txlam if name!='u' else tu
-            plotting(t,var,name,pdf=pdf)
+def plot_solution(sol: cs.OptiSol, nlp: dict):
+    txlam = sol.value(nlp["t"])
+    tu = txlam
+    X = sol.value(nlp["X"]).reshape(nlp["X"].shape)
+    U = sol.value(nlp["U"]).reshape(nlp["U"].shape)
+    lam = sol.value(nlp["costate"]).reshape(nlp["costate"].shape)
+    ham = sol.value(nlp["hamiltonian"]).reshape(nlp["hamiltonian"].shape)
+
+    with PdfPages("solution.pdf") as pdf:
+        for name, var in zip(["x", "u", r"\lambda", r"H"], [X, U, lam, ham]):
+            t = txlam if name != "u" else tu
+            plotting(t, var, name, pdf=pdf)
+
 
 def ideal():
     # ensure initial condition placed first in event constraint to estimate correct costate at t0
@@ -1144,7 +1173,7 @@ def ffrb():
 
     sol = opti.solve()
 
-    plot_solution(sol,nlp)
+    plot_solution(sol, nlp)
 
 
 def check_costates():
@@ -1190,12 +1219,7 @@ def check_costates():
     ocp_data["e_ub"] = zr
 
     # dynamics
-    f = cs.vcat(
-        [
-            xs[1],
-            -xs[1]+us
-        ]
-    )
+    f = cs.vcat([xs[1], -xs[1] + us])
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
     ocp_data["n"] = 100
@@ -1207,16 +1231,16 @@ def check_costates():
     nlp["nlp"].solver("ipopt")
     nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    sol=nlp["nlp"].solve()
-    #print(cs.mmax(cs.fabs(sol.value(nlp['costate'])-cs.vertcat(cs.DM.ones(1,1001),1-0.5*cs.exp(cs.linspace(0,2,1000+1).T)))))
-    #import matplotlib.pyplot as plt
-    #plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[0,:],'^',label=r'$\lambda_1$ (num)')
-    #plt.plot(np.linspace(0,2,1000+1),np.ones(1001),'-',label=r'$\lambda_1$ (ana)')
-    #plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[1,:],'s',label=r'$\lambda_2$ (num)')
-    #plt.plot(np.linspace(0,2,1000+1),1-0.5*np.exp(np.linspace(0,2,1000+1)),'--',label=r'$\lambda_2$ (ana)')
-    #plt.legend()
-    #plt.show()
-    plot_solution(sol,nlp)
+    sol = nlp["nlp"].solve()
+    # print(cs.mmax(cs.fabs(sol.value(nlp['costate'])-cs.vertcat(cs.DM.ones(1,1001),1-0.5*cs.exp(cs.linspace(0,2,1000+1).T)))))
+    # import matplotlib.pyplot as plt
+    # plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[0,:],'^',label=r'$\lambda_1$ (num)')
+    # plt.plot(np.linspace(0,2,1000+1),np.ones(1001),'-',label=r'$\lambda_1$ (ana)')
+    # plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[1,:],'s',label=r'$\lambda_2$ (num)')
+    # plt.plot(np.linspace(0,2,1000+1),1-0.5*np.exp(np.linspace(0,2,1000+1)),'--',label=r'$\lambda_2$ (ana)')
+    # plt.legend()
+    # plt.show()
+    plot_solution(sol, nlp)
 
 
 def check_costates_mayer():
@@ -1243,7 +1267,7 @@ def check_costates_mayer():
 
     # lagrange and mayer objective
     ocp_data["L"] = None
-    ocp_data["E"] = cs.Function('E',[t0s,tfs,x0s,xfs],[xfs[2]])
+    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [xfs[2]])
 
     # event constraints
     e = cs.vertcat(
@@ -1258,22 +1282,16 @@ def check_costates_mayer():
     ocp_data["e_ub"] = zr
 
     # dynamics
-    f = cs.vcat(
-        [
-            xs[1],
-            -xs[1]+us,
-            us**2
-        ]
-    )
+    f = cs.vcat([xs[1], -xs[1] + us, us**2])
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
-    method=casadi_integrator(plugin='cvodes',nx=ocp_data['nx'],nu=ocp_data['nu'],path=[ts,xs,us],f=f)
+    method = casadi_integrator(
+        plugin="cvodes", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+    )
 
-    ocp_data['method']=method
-
+    ocp_data["method"] = method
 
     ocp_data["n"] = 100
-
 
     trajopt = TrajOpt(**ocp_data)
 
@@ -1281,18 +1299,103 @@ def check_costates_mayer():
     nlp["nlp"].solver("ipopt")
     nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    sol=nlp["nlp"].solve()
-    #print(cs.mmax(cs.fabs(sol.value(nlp['costate'])-cs.vertcat(cs.DM.ones(1,1001),1-0.5*cs.exp(cs.linspace(0,2,1000+1).T)))))
-    #import matplotlib.pyplot as plt
-    #plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[0,:],'^',label=r'$\lambda_1$ (num)')
-    #plt.plot(np.linspace(0,2,1000+1),np.ones(1001),'-',label=r'$\lambda_1$ (ana)')
-    #plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[1,:],'s',label=r'$\lambda_2$ (num)')
-    #plt.plot(np.linspace(0,2,1000+1),1-0.5*np.exp(np.linspace(0,2,1000+1)),'--',label=r'$\lambda_2$ (ana)')
-    #plt.legend()
-    #plt.show()
-    plot_solution(sol,nlp)
+    sol = nlp["nlp"].solve()
+    # print(cs.mmax(cs.fabs(sol.value(nlp['costate'])-cs.vertcat(cs.DM.ones(1,1001),1-0.5*cs.exp(cs.linspace(0,2,1000+1).T)))))
+    # import matplotlib.pyplot as plt
+    # plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[0,:],'^',label=r'$\lambda_1$ (num)')
+    # plt.plot(np.linspace(0,2,1000+1),np.ones(1001),'-',label=r'$\lambda_1$ (ana)')
+    # plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[1,:],'s',label=r'$\lambda_2$ (num)')
+    # plt.plot(np.linspace(0,2,1000+1),1-0.5*np.exp(np.linspace(0,2,1000+1)),'--',label=r'$\lambda_2$ (ana)')
+    # plt.legend()
+    # plt.show()
+    plot_solution(sol, nlp)
+
+
+def low_thrust():
+    ocp_data = {}
+    ocp_data["nx"] = 4
+    ocp_data["nu"] = 2
+
+    # event and Mayer
+    t0s = cs.SX.sym("t0s")
+    tfs = cs.SX.sym("tfs")
+    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
+    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
+
+    # Lagrange dynamics and path
+    ts = cs.SX.sym("ts")
+    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
+    us = cs.SX.sym("us", ocp_data["nu"], 1)
+
+    # initial and final time
+    ocp_data["t0"] = cs.DM(0)
+    ocp_data["tf"] = None
+
+    # lagrange and mayer objective
+    ocp_data["L"] = None
+    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [tfs])
+
+    # event constraints
+    e = cs.vertcat(
+        x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5]), tfs
+    )
+    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
+    ocp_data["e_lb"] = cs.vcat([0] * 7 + [0])
+    ocp_data["e_ub"] = cs.vcat([0] * 7 + [100])
+
+    # dynamics
+    f = cs.vcat(
+        [
+            xs[2, :],
+            xs[3, :] / xs[0, :],
+            xs[3, :] ** 2 / xs[0, :] - 1 / xs[0, :] ** 2 + us[0, :],
+            -xs[2, :] * xs[3, :] / xs[0, :] + us[1, :],
+        ]
+    )
+    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
+
+    method = casadi_integrator(
+        plugin="collocation",
+        plugin_options={
+            "interpolation_order": 4,
+            "collocation_scheme": "legendre",
+            "rootfinder":'kinsol',
+            "number_of_finite_elements": 1,
+            "simplify":True
+        },
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
+    )
+
+    ocp_data["method"] = method
+
+    ocp_data["u_lb"] = cs.DM([-0.01] * 2)
+    ocp_data["u_ub"] = cs.DM([0.01] * 2)
+
+    ocp_data["n"] = 200
+
+    trajopt = TrajOpt(**ocp_data)
+
+    nlp = trajopt.generate_NLP()
+    nlp["nlp"].solver("ipopt")
+
+    Xg = cs.vcat(
+        [
+            cs.linspace(1, 4, ocp_data["n"] + 1).T,
+            cs.linspace(0, 0, ocp_data["n"] + 1).T,
+            cs.linspace(0, 0, ocp_data["n"] + 1).T,
+            cs.linspace(1, 0.5, ocp_data["n"] + 1).T,
+        ]
+    )
+
+    nlp["nlp"].set_initial(nlp["X"], Xg)
+    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
+    nlp["nlp"].set_initial(nlp["tf"], 50)
+    sol = nlp["nlp"].solve()
+    plot_solution(sol, nlp)
 
 
 if __name__ == "__main__":
-    check_costates_mayer()
-
+    low_thrust()
