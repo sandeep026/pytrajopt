@@ -17,7 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 # bw_euler - backward Euler
 # trap     - trapezoidal
 # her_sim  - Hermite Simpson
-dis_methods = Literal["fw_euler", "bw_euler", "trap", "her_sim"]
+dis_methods = Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"]
 
 
 class TrajOpt(BaseModel):
@@ -591,6 +591,15 @@ class TrajOpt(BaseModel):
         trajopt["dynamics"] = f
         trajopt["objective"] = objective
         trajopt["costate"] = self.get_costate(nlp.lam_g)
+        if self.L is not None:
+            ham_L=self.L.map(n+1,'serial')(t,X,cs.hcat([U, U[:, -1]]))
+        else:
+            ham_L=0
+        if self.method in['bw_euler','her_sim','trap']:
+            print('Costate estimation not implemented for IRK methods')
+            trajopt['hamiltonian']=np.full(shape=(1,n+1), fill_value=np.nan)
+        else:
+            trajopt["hamiltonian"]=ham_L+cs.sum1(trajopt['costate']*self.f.map(n+1,'serial')(t,X,cs.hcat([U, U[:, -1]])))
 
         return trajopt
 
@@ -609,6 +618,10 @@ class TrajOpt(BaseModel):
             return defect
         elif self.method == "fw_euler":
             defect = dX - Fl * h
+            return defect
+        elif self.method=='exp_mid':
+            Fm=F(0.5*(tl+tr),Xl+h/2*F(tl,Xl,U),U)
+            defect=dX-h*Fm
             return defect
         elif self.method == "trap":
             defect = dX - 0.5 * h * (Fl + Fr)
@@ -638,6 +651,8 @@ def plotting(t:np.ndarray,var:np.ndarray,name:str,pdf:PdfPages):
         if name=='u': 
             plt.step(t.ravel()[0:-1],var[i,:].ravel())
         else: 
+            if np.isnan(var).all():
+                print('Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler')
             plt.plot(t.ravel(),var[i,:].ravel())
         plt.ylabel(rf'${name}_{i}$')
         plt.xlabel('time [s]')
@@ -650,9 +665,10 @@ def plot_solution(sol:cs.OptiSol,nlp:dict):
     X=sol.value(nlp['X']).reshape(nlp['X'].shape)
     U=sol.value(nlp['U']).reshape(nlp['U'].shape)
     lam=sol.value(nlp['costate']).reshape(nlp['costate'].shape)
+    ham=sol.value(nlp['hamiltonian']).reshape(nlp['hamiltonian'].shape)
 
     with PdfPages('solution.pdf') as pdf:
-        for name,var in zip(['x','u',r'\lambda'],[X,U,lam]):
+        for name,var in zip(['x','u',r'\lambda',r'H'],[X,U,lam,ham]):
             t= txlam if name!='u' else tu
             plotting(t,var,name,pdf=pdf)
         
@@ -660,6 +676,7 @@ def plot_solution(sol:cs.OptiSol,nlp:dict):
 
 
 def ideal():
+    # ensure initial condition placed first in event constraint to estimate correct costate at t0
     # ocp_data
     ocp_data = {}
 
@@ -1124,7 +1141,7 @@ def check_costates():
 
 
     ocp_data["n"] = 100
-    ocp_data["method"] = "fw_euler"
+    ocp_data["method"] = "exp_mid"
 
     trajopt = TrajOpt(**ocp_data)
 
@@ -1144,7 +1161,77 @@ def check_costates():
     plot_solution(sol,nlp)
 
 
+def check_costates_mayer():
+    # ocp_data
+    ocp_data = {}
+
+    ocp_data["nx"] = 3
+    ocp_data["nu"] = 1
+
+    # event and Mayer
+    t0s = cs.SX.sym("t0s")
+    tfs = cs.SX.sym("tfs")
+    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
+    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
+
+    # Lagrange dynamics and path
+    ts = cs.SX.sym("ts")
+    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
+    us = cs.SX.sym("us", ocp_data["nu"], 1)
+
+    # initial and final time
+    ocp_data["t0"] = cs.DM(0)
+    ocp_data["tf"] = cs.DM(2)
+
+    # lagrange and mayer objective
+    ocp_data["L"] = None
+    ocp_data["E"] = cs.Function('E',[t0s,tfs,x0s,xfs],[xfs[2]])
+
+    # event constraints
+    e = cs.vertcat(
+        x0s - cs.DM([0, 0, 0]),
+        xfs[0]
+        - 0.5 * (cs.exp(1) ** 2 - 2) * xfs[1]
+        - (-cs.exp(4) + 8 * cs.exp(2) - 23) / 16,
+    )
+    zr = cs.DM.zeros(e.shape)
+    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
+    ocp_data["e_lb"] = zr
+    ocp_data["e_ub"] = zr
+
+    # dynamics
+    f = cs.vcat(
+        [
+            xs[1],
+            -xs[1]+us,
+            us**2
+        ]
+    )
+    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
+
+
+
+    ocp_data["n"] = 1000
+    ocp_data["method"] = "exp_mid"
+
+    trajopt = TrajOpt(**ocp_data)
+
+    nlp = trajopt.generate_NLP()
+    nlp["nlp"].solver("ipopt")
+    nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
+    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
+    sol=nlp["nlp"].solve()
+    #print(cs.mmax(cs.fabs(sol.value(nlp['costate'])-cs.vertcat(cs.DM.ones(1,1001),1-0.5*cs.exp(cs.linspace(0,2,1000+1).T)))))
+    #import matplotlib.pyplot as plt
+    #plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[0,:],'^',label=r'$\lambda_1$ (num)')
+    #plt.plot(np.linspace(0,2,1000+1),np.ones(1001),'-',label=r'$\lambda_1$ (ana)')
+    #plt.plot(np.linspace(0,2,1000+1),sol.value(nlp['costate'])[1,:],'s',label=r'$\lambda_2$ (num)')
+    #plt.plot(np.linspace(0,2,1000+1),1-0.5*np.exp(np.linspace(0,2,1000+1)),'--',label=r'$\lambda_2$ (ana)')
+    #plt.legend()
+    #plt.show()
+    plot_solution(sol,nlp)
+
 
 if __name__ == "__main__":
-    ffrb()
+    check_costates()
 
