@@ -9,9 +9,9 @@ from pydantic import (
     ConfigDict,
     Field,
     PositiveInt,
+    PrivateAttr,
     field_validator,
     model_validator,
-    PrivateAttr,
 )
 
 
@@ -58,7 +58,7 @@ class casadi_integrator(BaseModel):
         tfs = cs.SX.sym("tfs")
         tau = cs.SX.sym("tau")
         t = t0s + (tfs - t0s) * tau
-        f_scaled = (tfs - t0s) * cs.substitute(f, path[0], t)
+        f_scaled = cs.transform((tfs - t0s) * cs.substitute(f, path[0], t))
         ode_s = {
             "t": tau,
             "x": path[1],
@@ -662,15 +662,16 @@ class TrajOpt(BaseModel):
         trajopt["U"] = U
         trajopt["dynamics"] = f
         trajopt["objective"] = objective
-        trajopt["costate"] = self.get_costate(nlp.lam_g)
-        if self.L is not None:
-            ham_L = self.L.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
-        else:
-            ham_L = 0
         if self.method in ["bw_euler", "her_sim", "trap"]:
             print("Costate estimation not implemented for IRK methods")
+            trajopt["costate"] = np.full(shape=self.get_costate(nlp.lam_g).shape,fill_value=np.nan)
             trajopt["hamiltonian"] = np.full(shape=(1, n + 1), fill_value=np.nan)
         else:
+            if self.L is not None:
+                ham_L = self.L.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
+            else:
+                ham_L = 0
+            trajopt["costate"] = self.get_costate(nlp.lam_g)
             trajopt["hamiltonian"] = ham_L + cs.sum1(
                 trajopt["costate"]
                 * self.f.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
@@ -716,7 +717,7 @@ class TrajOpt(BaseModel):
                 1,
                 self.method.plugin_options,
             )
-            Phi = phi.map(self.n, "serial")
+            Phi = phi.map(self.n, "thread",6)
             defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
             return defect
         else:
@@ -764,92 +765,7 @@ def plot_solution(sol: cs.OptiSol, nlp: dict):
             plotting(t, var, name, pdf=pdf)
 
 
-def ideal():
-    # ensure initial condition placed first in event constraint to estimate correct costate at t0
-    # ocp_data
-    ocp_data = {}
 
-    ocp_data["nx"] = 6
-    ocp_data["nu"] = 2
-
-    # event and Mayer
-    t0s = cs.SX.sym("t0s")
-    tfs = cs.SX.sym("tfs")
-    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-
-    # Lagrange dynamics and path
-    ts = cs.SX.sym("ts")
-    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-    us = cs.SX.sym("us", ocp_data["nu"], 1)
-
-    c1 = 2.83374
-    c2 = -0.80865
-    c3 = 0.71265
-    c4 = 17.2656
-    c5 = 27.0756
-    rho = 0.01
-
-    # initial and final time
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = cs.DM(9)
-    ocp_data["t0_lb"] = None
-    ocp_data["tf_lb"] = None
-    ocp_data["t0_ub"] = None
-    ocp_data["tf_ub"] = None
-
-    # lagrange and mayer objective
-    ocp_data["L"] = cs.Function(
-        "L",
-        [ts, xs, us],
-        [0.5 * (xs[2] ** 2 + xs[5] ** 2 + rho * (us[0] ** 2 + us[1] ** 2))],
-    )
-    ocp_data["E"] = None
-
-    # event constraints
-    e = cs.vertcat(
-        x0s - cs.DM([0, 22, 0, 0, -1, 0]), xfs - cs.DM([10, 14, 0, 2.5, 0, 0])
-    )
-    zr = cs.DM.zeros(e.shape)
-    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
-    ocp_data["e_lb"] = zr
-    ocp_data["e_ub"] = zr
-
-    # dynamics
-    f = cs.vcat(
-        [
-            xs[3],
-            xs[4],
-            xs[5],
-            us[0] + c4 * xs[2],
-            us[1],
-            -(us[0] + c5 * xs[2] + 2 * xs[4] * xs[5]) / xs[1],
-        ]
-    )
-    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
-
-    # path constraint
-    ocp_data["h"] = None
-    ocp_data["h_lb"] = None
-    ocp_data["h_ub"] = None
-
-    # simple bounds
-    inf = cs.DM.inf()
-    ocp_data["x_lb"] = cs.DM([-inf] * 3 + [-2.5, -1] + [-inf])
-    ocp_data["x_ub"] = cs.DM([+inf] * 3 + [2.5, 1] + [inf])
-    ocp_data["u_lb"] = cs.DM([-c1, c2])
-    ocp_data["u_ub"] = cs.DM([c1, c3])
-
-    ocp_data["n"] = 100
-    ocp_data["method"] = "her_sim"
-
-    trajopt = TrajOpt(**ocp_data)
-
-    nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt", {"detect_simple_bounds": False})
-    nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
-    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    nlp["nlp"].solve()
 
 
 def check_defaults():
@@ -1027,153 +943,6 @@ def check_dynamics():
     nlp["nlp"].solve()
 
 
-def ffrb():
-    """Free-Flying Robot OCP: Chapter 25, Example 25.1."""
-
-    nx = 6
-    nu = 4
-    n = 1000
-
-    alpha = 0.2
-    beta = 0.2
-
-    t = cs.SX.sym("t")
-    x = cs.SX.sym("x", nx, 1)
-    u = cs.SX.sym("u", nu, 1)
-
-    t0s = cs.SX.sym("t0")
-    tfs = cs.SX.sym("tf")
-    x0s = cs.SX.sym("x0", nx, 1)
-    xfs = cs.SX.sym("xf", nx, 1)
-
-    thrust = u[0] - u[1] + u[2] - u[3]
-
-    f_expr = cs.vertcat(
-        x[3],
-        x[4],
-        x[5],
-        thrust * cs.cos(x[2]),
-        thrust * cs.sin(x[2]),
-        alpha * (u[0] - u[1]) - beta * (u[2] - u[3]),
-    )
-
-    f = cs.Function(
-        "f_ffrb",
-        [t, x, u],
-        [f_expr],
-    )
-
-    L = cs.Function(
-        "L_ffrb",
-        [t, x, u],
-        [cs.sum1(u)],
-    )
-
-    E = None
-
-    h_expr = cs.vertcat(
-        u[0] + u[1],
-        u[2] + u[3],
-    )
-
-    h = cs.Function(
-        "h_ffrb",
-        [t, x, u],
-        [h_expr],
-    )
-
-    h_lb = -cs.DM.inf() * cs.DM.ones(2, 1)
-    h_ub = cs.DM.ones(2, 1)
-
-    x_initial = cs.DM(
-        [
-            -10,
-            -10,
-            np.pi / 2,
-            0,
-            0,
-            0,
-        ]
-    )
-
-    x_final = cs.DM.zeros(nx, 1)
-
-    e_expr = cs.vertcat(
-        x0s - x_initial,
-        xfs - x_final,
-    )
-
-    e = cs.Function(
-        "e_ffrb",
-        [t0s, tfs, x0s, xfs],
-        [e_expr],
-    )
-
-    e_lb = cs.DM.zeros(2 * nx, 1)
-    e_ub = cs.DM.zeros(2 * nx, 1)
-
-    ocp_data = {
-        "nx": nx,
-        "nu": nu,
-        "n": n,
-        "t0": cs.DM(0),
-        "tf": cs.DM(12),
-        "L": L,
-        "E": E,
-        "f": f,
-        "e": e,
-        "h": h,
-        "h_lb": h_lb,
-        "h_ub": h_ub,
-        "e_lb": e_lb,
-        "e_ub": e_ub,
-        "x_lb": None,
-        "x_ub": None,
-        "u_lb": cs.DM.zeros(nu, 1),
-        "u_ub": cs.DM.ones(nu, 1),
-        "method": "her_sim",
-    }
-
-    trajopt = TrajOpt(**ocp_data)
-
-    # Generate the nonlinear program
-    nlp = trajopt.generate_NLP()
-    opti = nlp["nlp"]
-
-    s = np.linspace(0.0, 1.0, n + 1)
-    q = 3.0 * s**2 - 2.0 * s**3
-    dq_dt = (6.0 * s - 6.0 * s**2) / 12.0
-
-    X_guess = np.zeros((nx, n + 1))
-    X_guess[0, :] = -10.0 + 10.0 * q
-    X_guess[1, :] = -10.0 + 10.0 * q
-    X_guess[2, :] = (np.pi / 2.0) * (1.0 - q)
-    X_guess[3, :] = 10.0 * dq_dt
-    X_guess[4, :] = 10.0 * dq_dt
-    X_guess[5, :] = -(np.pi / 2.0) * dq_dt
-
-    # Interior, path-feasible initial control guess.
-    U_guess = np.tile(
-        np.array([[0.05], [0.10], [0.30], [0.05]]),
-        (1, n),
-    )
-
-    opti.set_initial(nlp["X"], cs.DM.ones(X_guess.shape))
-    opti.set_initial(nlp["U"], cs.DM.ones(U_guess.shape))
-
-    opti.solver(
-        "ipopt",
-        {"detect_simple_bounds": False},
-        {
-            "max_iter": 5000,
-            "tol": 1e-8,
-            "print_level": 5,
-        },
-    )
-
-    sol = opti.solve()
-
-    plot_solution(sol, nlp)
 
 
 def check_costates():
@@ -1311,91 +1080,3 @@ def check_costates_mayer():
     plot_solution(sol, nlp)
 
 
-def low_thrust():
-    ocp_data = {}
-    ocp_data["nx"] = 4
-    ocp_data["nu"] = 2
-
-    # event and Mayer
-    t0s = cs.SX.sym("t0s")
-    tfs = cs.SX.sym("tfs")
-    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-
-    # Lagrange dynamics and path
-    ts = cs.SX.sym("ts")
-    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-    us = cs.SX.sym("us", ocp_data["nu"], 1)
-
-    # initial and final time
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = None
-
-    # lagrange and mayer objective
-    ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [tfs])
-
-    # event constraints
-    e = cs.vertcat(
-        x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5]), tfs
-    )
-    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
-    ocp_data["e_lb"] = cs.vcat([0] * 7 + [0])
-    ocp_data["e_ub"] = cs.vcat([0] * 7 + [100])
-
-    # dynamics
-    f = cs.vcat(
-        [
-            xs[2, :],
-            xs[3, :] / xs[0, :],
-            xs[3, :] ** 2 / xs[0, :] - 1 / xs[0, :] ** 2 + us[0, :],
-            -xs[2, :] * xs[3, :] / xs[0, :] + us[1, :],
-        ]
-    )
-    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
-
-    method = casadi_integrator(
-        plugin="collocation",
-        plugin_options={
-            "interpolation_order": 4,
-            "collocation_scheme": "legendre",
-            "rootfinder":'kinsol',
-            "number_of_finite_elements": 1,
-            "simplify":True
-        },
-        nx=ocp_data["nx"],
-        nu=ocp_data["nu"],
-        path=[ts, xs, us],
-        f=f,
-    )
-
-    ocp_data["method"] = method
-
-    ocp_data["u_lb"] = cs.DM([-0.01] * 2)
-    ocp_data["u_ub"] = cs.DM([0.01] * 2)
-
-    ocp_data["n"] = 200
-
-    trajopt = TrajOpt(**ocp_data)
-
-    nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt")
-
-    Xg = cs.vcat(
-        [
-            cs.linspace(1, 4, ocp_data["n"] + 1).T,
-            cs.linspace(0, 0, ocp_data["n"] + 1).T,
-            cs.linspace(0, 0, ocp_data["n"] + 1).T,
-            cs.linspace(1, 0.5, ocp_data["n"] + 1).T,
-        ]
-    )
-
-    nlp["nlp"].set_initial(nlp["X"], Xg)
-    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    nlp["nlp"].set_initial(nlp["tf"], 50)
-    sol = nlp["nlp"].solve()
-    plot_solution(sol, nlp)
-
-
-if __name__ == "__main__":
-    low_thrust()
