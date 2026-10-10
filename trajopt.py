@@ -3,22 +3,80 @@ from typing import Literal
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.backends.backend_pdf import PdfPages
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     PositiveInt,
     field_validator,
     model_validator,
+    PrivateAttr
 )
 
-from matplotlib.backends.backend_pdf import PdfPages
+
+class casadi_integrator(BaseModel):
+    # provides access to casadi integrators
+    model_config=ConfigDict(arbitrary_types_allowed=True,extra='forbid')
+    plugin:Literal['cvodes','collocation','rk']='rk'
+    plugin_options:dict=Field(default_factory=dict)
+    nx:int
+    nu:int
+    path:list[cs.SX]
+    f:cs.SX
+    _scaled_ode:dict[str, cs.SX]=PrivateAttr(default_factory=dict)
+
+    @field_validator('path')
+    @classmethod
+    def check_length(cls,path):
+        if len(path)!=3:
+            raise ValueError(f't,x,u must be present in path. Recived {len(path)} expected 3')
+        return path
+
+    @field_validator('f')
+    @classmethod
+    def check_column(cls,f):
+        if f.shape[1]!=1:
+            raise ValueError(f'f must be a column vector but received f of shape {f.shape}')
+        return f
+    
+
+    def __eq__(self, other):
+        # If the other object is a string, check if it matches the class name
+        if isinstance(other, str):
+            return self.__class__.__name__ == other
+        
+        # Fallback to standard comparison for other object types
+        return super().__eq__(other)
+
+    @classmethod
+    def get_scaled_dynamics(cls,path,f):
+        t0s=cs.SX.sym('t0s')
+        tfs=cs.SX.sym('tfs')
+        tau=cs.SX.sym('tau')
+        t=t0s+(tfs-t0s)*tau
+        f_scaled=(tfs-t0s)*cs.substitute(f,path[0],t)
+        ode_s={'t':tau,'x':path[1],'p':cs.vertcat(path[2],t0s,tfs),'ode':f_scaled}
+        return ode_s
+
+    @model_validator(mode='after')
+    def generate_ode_dict(self):
+
+        syms_shapes=[(1,1),(self.nx,1),(self.nu,1),(self.nx,1)]
+        syms=self.path+[self.f]
+        for name, known_shape,object in zip(['t','x','u','f'],syms_shapes,syms):
+            if object.shape!=known_shape:
+                raise ValueError(f'{name} is a {known_shape} vector but received {object.shape}')
+
+        self._scaled_ode=casadi_integrator.get_scaled_dynamics(self.path,self.f)
+            
+        return self
 
 # fw_euler - forward Euler
 # bw_euler - backward Euler
 # trap     - trapezoidal
 # her_sim  - Hermite Simpson
-dis_methods = Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"]
-
+dis_methods = Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"] | casadi_integrator
 
 class TrajOpt(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
@@ -632,6 +690,11 @@ class TrajOpt(BaseModel):
             Fm = F(tm, Xm, U)
             defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
             return defect
+        elif self.method=='casadi_integrator':
+            phi=cs.integrator('phi',self.method.plugin,self.method._scaled_ode,0,1,self.method.plugin_options)
+            Phi=phi.map(self.n,'serial')
+            defect=Xr-Phi(x0=Xl,p=cs.vcat([U,tl,tr]))['xf']
+            return defect
         else:
             raise ValueError("Wrong option for method")
 
@@ -652,7 +715,7 @@ def plotting(t:np.ndarray,var:np.ndarray,name:str,pdf:PdfPages):
             plt.step(t.ravel()[0:-1],var[i,:].ravel())
         else: 
             if np.isnan(var).all():
-                print('Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler')
+                print('Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler or exp_mid')
             plt.plot(t.ravel(),var[i,:].ravel())
         plt.ylabel(rf'${name}_{i}$')
         plt.xlabel('time [s]')
@@ -671,9 +734,6 @@ def plot_solution(sol:cs.OptiSol,nlp:dict):
         for name,var in zip(['x','u',r'\lambda',r'H'],[X,U,lam,ham]):
             t= txlam if name!='u' else tu
             plotting(t,var,name,pdf=pdf)
-        
-
-
 
 def ideal():
     # ensure initial condition placed first in event constraint to estimate correct costate at t0
@@ -1138,8 +1198,6 @@ def check_costates():
     )
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
-
-
     ocp_data["n"] = 100
     ocp_data["method"] = "exp_mid"
 
@@ -1209,10 +1267,13 @@ def check_costates_mayer():
     )
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
+    method=casadi_integrator(plugin='cvodes',nx=ocp_data['nx'],nu=ocp_data['nu'],path=[ts,xs,us],f=f)
+
+    ocp_data['method']=method
 
 
-    ocp_data["n"] = 1000
-    ocp_data["method"] = "exp_mid"
+    ocp_data["n"] = 100
+
 
     trajopt = TrajOpt(**ocp_data)
 
@@ -1233,5 +1294,5 @@ def check_costates_mayer():
 
 
 if __name__ == "__main__":
-    check_costates()
+    check_costates_mayer()
 
