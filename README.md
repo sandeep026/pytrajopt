@@ -191,6 +191,29 @@ Here is a brief example of how to configure and use `TrajOpt` in your script:
 The problem is taken from "Ross, I. Michael, Qi Gong, and Pooya Sekhavat. "Low-thrust, high-accuracy trajectory optimization." Journal of Guidance, Control, and Dynamics 30.4 (2007): 921-933". The minimum time reported when solved using LGL pseudospectral
 method is **47.706** for 300 nodes.
 
+$$\mathbf{x}^T := [r, \theta, v_r, v_t]$$
+
+$$\mathbf{u}^T := [u_r, u_t]$$
+
+$$\text{Minimize } J[\mathbf{x}(\cdot), \mathbf{u}(\cdot), t_f] = t_f$$
+
+subject to
+
+$$\dot{r} = v_r$$
+
+$$\dot{\theta} = \frac{v_t}{r}$$
+
+$$\dot{v}_r = \frac{v_t^2}{r} - \frac{1}{r^2} + u_r$$
+
+$$\dot{v}_t = -\frac{v_r v_t}{r} + u_t$$
+
+$$(r, \theta, v_r, v_t)(0) = (1, 0, 0, 1)$$
+
+$$(r, v_r, v_t)(t_f) = (4, 0, 0.5)$$
+
+$$-0.01 \le \mathbf{u} \le 0.01$$
+
+
 The primal and dual solution for the problem are given in [here](./solution.pdf)
 
 ```python
