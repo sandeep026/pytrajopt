@@ -152,6 +152,16 @@ The framework supports multiple transcription strategies categorized into **Dire
 
 
 ---
+### Post processing
+
+Once solved the solution obtained can be visualized using the `plot_solution` function which creates a pdf with plots of the
+optimal states, controls, costates and Hamiltonian.
+
+For direct multiple shooting, estimates of the costates are extracted from the KKT multipliers, which is also used to 
+compute the Hamiltonian over the grid. For the direct collocation methods, this is not implemented and will result in 
+empty plots.
+
+---
 
 ## 5. Repository Structure
 
