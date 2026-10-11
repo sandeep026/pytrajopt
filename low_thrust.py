@@ -67,7 +67,7 @@ def low_thrust():
     ocp_data["u_lb"] = cs.DM([-0.01] * 2)
     ocp_data["u_ub"] = cs.DM([0.01] * 2)
 
-    ocp_data["n"] = 500
+    ocp_data["n"] = 100
 
     trajopt = TrajOpt(**ocp_data)
 

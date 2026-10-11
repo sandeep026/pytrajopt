@@ -717,7 +717,7 @@ class TrajOpt(BaseModel):
                 1,
                 self.method.plugin_options,
             )
-            Phi = phi.map(self.n, "thread",6)
+            Phi = phi.map(self.n, "serial")
             defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
             return defect
         else:
@@ -734,8 +734,9 @@ class TrajOpt(BaseModel):
 
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
+    plt.style.use('pub_qual.mplstyle')
     for i in range(var.shape[0]):
-        plt.figure(figsize=(6, 3))
+        plt.figure()
 
         if name == "u":
             plt.step(t.ravel()[0:-1], var[i, :].ravel())
@@ -747,6 +748,7 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
             plt.plot(t.ravel(), var[i, :].ravel())
         plt.ylabel(rf"${name}_{i}$")
         plt.xlabel("time [s]")
+        plt.grid(True)
         pdf.savefig(bbox_inches="tight")
         plt.close()
 
