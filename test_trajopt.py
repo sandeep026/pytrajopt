@@ -1,3 +1,9 @@
+import casadi as cs
+import matplotlib.pyplot as plt
+import numpy as np
+from trajopt import TrajOpt, casadi_integrator, plot_solution
+
+
 def check_defaults():
     # ocp_data
     ocp_data = {}

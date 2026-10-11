@@ -28,7 +28,26 @@ class casadi_integrator(BaseModel):
 
     @field_validator("path")
     @classmethod
-    def check_length(cls, path):
+    def check_length(cls, path: list[cs.SX]) -> list[cs.SX]:
+        """
+
+        length of path list must be 3 [t,x,u]
+
+        Parameters
+        ----------
+        path : list[cs.SX]
+            the path variables
+
+        Returns
+        -------
+        list[cs.SX]
+            validated path variables
+
+        Raises
+        ------
+        ValueError
+            length of the list is not 3
+        """
         if len(path) != 3:
             raise ValueError(
                 f"t,x,u must be present in path. Recived {len(path)} expected 3"
@@ -37,14 +56,48 @@ class casadi_integrator(BaseModel):
 
     @field_validator("f")
     @classmethod
-    def check_column(cls, f):
+    def check_column(cls, f: cs.SX) -> cs.SX:
+        """
+
+        the dynamics vector must be a column vector
+
+        Parameters
+        ----------
+        f : cs.SX
+            xd=f(t,x,u)
+
+        Returns
+        -------
+        cs.SX
+            validated f vector
+
+        Raises
+        ------
+        ValueError
+            if a tow vector or matrix is passed
+        """
         if f.shape[1] != 1:
             raise ValueError(
                 f"f must be a column vector but received f of shape {f.shape}"
             )
         return f
 
-    def __eq__(self, other):
+    def __eq__(self, other: str) -> bool:
+        """
+        casadi_integrator=='casadi_integrator' must return true
+
+        this functionality added to keep trajopt code clean
+
+        Parameters
+        ----------
+        other : str
+            string to be compared against
+
+        Returns
+        -------
+        bool
+            truth value
+        """
         # If the other object is a string, check if it matches the class name
         if isinstance(other, str):
             return self.__class__.__name__ == other
@@ -53,7 +106,27 @@ class casadi_integrator(BaseModel):
         return super().__eq__(other)
 
     @classmethod
-    def get_scaled_dynamics(cls, path, f):
+    def get_scaled_dynamics(cls, path: list, f: cs.SX) -> dict[str, cs.SX]:
+        """
+        transform time from [t0,tf]->[0,1] (tau)
+
+        t0 tf are parameters in the ode (constants along the control vector)
+
+        helps to reuse casadi integrator object
+
+        Parameters
+        ----------
+        path : []
+            path variables [t,x,u]
+        f : cs.SX
+            ode expression [xd=f(t,x,u)]
+
+        Returns
+        -------
+        dict[str,cs.SX]
+            transformed ode in a dict
+        """
+
         t0s = cs.SX.sym("t0s")
         tfs = cs.SX.sym("tfs")
         tau = cs.SX.sym("tau")
@@ -68,8 +141,20 @@ class casadi_integrator(BaseModel):
         return ode_s
 
     @model_validator(mode="after")
-    def generate_ode_dict(self):
+    def generate_ode_dict(self) -> "casadi_integrator":
+        """
+        casadi.integrator compatible dict generation
 
+        Returns
+        -------
+        casadi_integrator
+            all objects needed to create a casadi integrator
+
+        Raises
+        ------
+        ValueError
+            shape mismatch of path variables
+        """
         syms_shapes = [(1, 1), (self.nx, 1), (self.nu, 1), (self.nx, 1)]
         syms = self.path + [self.f]
         for name, known_shape, object in zip(["t", "x", "u", "f"], syms_shapes, syms):
@@ -664,7 +749,9 @@ class TrajOpt(BaseModel):
         trajopt["objective"] = objective
         if self.method in ["bw_euler", "her_sim", "trap"]:
             print("Costate estimation not implemented for IRK methods")
-            trajopt["costate"] = np.full(shape=self.get_costate(nlp.lam_g).shape,fill_value=np.nan)
+            trajopt["costate"] = np.full(
+                shape=self.get_costate(nlp.lam_g).shape, fill_value=np.nan
+            )
             trajopt["hamiltonian"] = np.full(shape=(1, n + 1), fill_value=np.nan)
         else:
             if self.L is not None:
@@ -734,7 +821,7 @@ class TrajOpt(BaseModel):
 
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
-    plt.style.use('pub_qual.mplstyle')
+    plt.style.use("pub_qual.mplstyle")
     for i in range(var.shape[0]):
         plt.figure()
 
@@ -765,5 +852,3 @@ def plot_solution(sol: cs.OptiSol, nlp: dict):
         for name, var in zip(["x", "u", r"\lambda", r"H"], [X, U, lam, ham]):
             t = txlam if name != "u" else tu
             plotting(t, var, name, pdf=pdf)
-
-
