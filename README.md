@@ -1,6 +1,6 @@
-# CasADi TrajOpt
+# PyTrajOpt
 
-A lightweight, robust, and strongly typed **Trajectory Optimization (TrajOpt)** framework built in Python using **CasADi** for symbolic automatic differentiation and **Pydantic** for runtime configuration validation.
+A lightweight, robust, and strongly typed **Python based Trajectory Optimization (PyTrajOpt)** framework built in Python using **CasADi** for symbolic automatic differentiation and **Pydantic** for runtime configuration validation.
 
 ---
 
@@ -50,7 +50,89 @@ $$x_{lb} \leq x(t) \leq x_{ub}, \quad u_{lb} \leq u(t) \leq u_{ub}$$
 
 ---
 
-## 2. Discretization & Integration Methods
+## 2. Transcription: From OCP to NLP
+
+To solve the infinite-dimensional continuous OCP on a digital computer, the problem is **transcribed** into a finite-dimensional **Nonlinear Program (NLP)** using direct collocation or multiple shooting.
+
+### A. Time Grid Discretization
+
+The continuous time horizon $[t_0, t_f]$ is divided into $n$ uniform intervals of length $\Delta t = \frac{t_f - t_0}{n}$, generating $n+1$ mesh grid points:
+
+$$t_k = t_0 + k \Delta t, \quad k = 0, 1, \dots, n$$
+
+### B. NLP Decision Vector ($W$) Structure
+
+The continuous functions $x(t)$ and $u(t)$ are parameterized by state values at the grid nodes and control values over intervals. The NLP decision variable vector $W$ is assembled sequentially as follows:
+
+$$W = \begin{bmatrix} t_0 & t_f & \text{vec}(X)^T & \text{vec}(U)^T \end{bmatrix}^T$$
+
+* **Time variables:** Included only if free ($t_0$ and/or $t_f$).
+* **State Matrix ($X$):** Dimensions $n_x \times (n+1)$, flattened into a column vector containing all states across all nodes:
+
+$$X = \begin{bmatrix} x_0 & x_1 & \dots & x_n \end{bmatrix}$$
+
+
+* **Control Matrix ($U$):** Dimensions $n_u \times n$, flattened into a column vector containing control inputs across all intervals:
+
+$$U = \begin{bmatrix} u_0 & u_1 & \dots & u_{n-1} \end{bmatrix}$$
+
+
+
+### C. Objective Function Discretization
+
+The continuous integral (Lagrange term) is approximated using numerical quadrature (e.g., rectangular, trapezoidal, or Simpson integration), added to the terminal Mayer term:
+
+$$J_{\text{NLP}}(W) = \frac{t_f - t_0}{n} \sum_{k=0}^{n-1} L(t_k, x_k, u_k) + E(t_0, t_f, x_0, x_n)$$
+
+### D. Constraint Vector ($G(W)$) Structure
+
+All problem constraints are stacked vertically into a single vector $G(W)$ bounded by lower and upper limits ($G_{lb} \leq G(W) \leq G_{ub}$):
+
+1. **Event / Boundary Constraints:**
+
+$$G_{\text{event}} = e(t_0, t_f, x_0, x_n), \quad e_{lb} \leq G_{\text{event}} \leq e_{ub}$$
+
+
+2. **System Dynamics / Defect Constraints:**
+Enforces physical consistency between nodes using the chosen integration method (e.g., $x_{k+1} - x_k - \Delta t f(\cdot) = 0$):
+
+$$G_{\text{dyn}} = \text{Defects}(X, U, t) = 0$$
+
+
+3. **Path Constraints:**
+Evaluated across all grid nodes $k = 0, \dots, n$ (using zero-order hold extension for control inputs at the final node):
+
+$$G_{\text{path}} = \begin{bmatrix} h(t_0, x_0, u_0) \\ \vdots \\ h(t_n, x_n, u_{n-1}) \end{bmatrix}, \quad \text{repmat}(h_{lb}, 1, n+1) \leq G_{\text{path}} \leq \text{repmat}(h_{ub}, 1, n+1)$$
+
+
+
+---
+
+## 3. Assembled Final NLP Formulation
+
+Combining the objective function, stacked constraints, and decision vector bounds, the fully assembled **Nonlinear Program (NLP)** solved by CasADi and IPOPT takes the following standard mathematical form:
+
+$$\min_{W} \quad J_{\text{NLP}}(W)$$
+
+Subject to the composite constraints:
+
+$$G_{lb} \leq G(W) \leq G_{ub}$$
+
+where:
+
+$$G(W) = \begin{bmatrix} e(t_0, t_f, x_0, x_n) \\ \text{Defects}(X, U, t) \\ h(t_0, x_0, u_0) \\ \vdots \\ h(t_n, x_n, u_{n-1}) \end{bmatrix}, \quad  G_{lb} = \begin{bmatrix} e_{lb} \\ \mathbf{0} \\ \text{repmat}(h_{lb}, 1, n+1) \end{bmatrix}, \quad  G_{ub} = \begin{bmatrix} e_{ub} \\ \mathbf{0} \\ \text{repmat}(h_{ub}, 1, n+1) \end{bmatrix}$$
+
+And subject to simple variable bounds on the decision vector:
+
+$$W_{lb} \leq W \leq W_{ub}$$
+
+where:
+
+$$W = \begin{bmatrix} t_0 \\ t_f \\ \text{vec}(X) \\ \text{vec}(U) \end{bmatrix}, \quad W_{lb} \begin{bmatrix} t_{0,lb} \\ t_{f,lb} \\ \text{repmat}(x_{lb}, 1, n+1) \\ \text{repmat}(u_{lb}, 1, n) \end{bmatrix}, \quad W_{ub} = \begin{bmatrix} t_{0,ub} \\ t_{f,ub} \\ \text{repmat}(x_{ub}, 1, n+1) \\ \text{repmat}(u_{ub}, 1, n) \end{bmatrix}$$
+
+---
+
+## 4. Discretization & Integration Methods
 
 The framework supports multiple transcription strategies categorized into **Direct Multiple Shooting** and **Direct Collocation**:
 
@@ -71,7 +153,7 @@ The framework supports multiple transcription strategies categorized into **Dire
 
 ---
 
-## 3. Repository Structure
+## 5. Repository Structure
 
 ```text
 ├── trajopt.py   # Core Pydantic configuration & CasADi NLP transcription engine
@@ -81,7 +163,7 @@ The framework supports multiple transcription strategies categorized into **Dire
 
 ---
 
-## 4. Installation
+## 6. Installation
 
 Ensure you have Python installed along with the required dependencies:
 
@@ -92,7 +174,7 @@ pip install casadi pydantic numpy matplotlib
 
 ---
 
-## 5. Quick Start & Usage Example
+## 7. Quick Start & Usage Example
 
 Here is a brief example of how to configure and use `TrajOpt` in your script:
 
