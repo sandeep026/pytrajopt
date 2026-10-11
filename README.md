@@ -1,36 +1,32 @@
-# pytrajopt
+# CasADi TrajOpt
 
-A minimal package to solve optimal control problems in python via direct methods.
+A lightweight, robust, and strongly typed **Trajectory Optimization (TrajOpt)** framework built in Python using **CasADi** for symbolic automatic differentiation and **Pydantic** for runtime configuration validation.
 
-## Optimal control problem
+---
 
-pytrajopt currently solves the OCP of the form given below.
+## Overview
 
-$$
-J(x,u)=\int_{t_0}^{t_f}L(t,x,u)\mathrm{d}t+E(t_0,t_f,x_0,x_f)
-$$ 
+Solving Optimal Control Problems (OCPs) often requires writing boilerplate code to handle constraint dimension checks, bound mapping, and integrator setup. This repository provides a single-file core framework (`trajopt.py`) that abstracts these complexities while enforcing strict shape validation, automatic scaling, and clear separation between path and event constraints.
 
-$$
-e_{lb} \leq e(t_0,t_f,x_0,x_f) \leq e_{ub}
-$$ 
+---
 
-$$
-\dot{x}=f(t,x,u)
-$$ 
+## 1. Theoretical Formulation (OCP)
 
-$$
-h_{lb} \leq h(t,x,u) \leq h_{ub}
-$$
+The framework is designed to solve continuous-time Optimal Control Problems of the general form:
 
-$$
-x_{lb} \leq  x \leq x_{ub}
-$$ 
+$$\min_{x(\cdot), u(\cdot), t_0, t_f} \quad J(x,u) = \int_{t_0}^{t_f} L(t,x,u)\mathrm{d}t + E(t_0,t_f,x_0,x_f)$$
 
-$$
-u_{lb} \leq  x \leq u_{ub}
-$$
+Subject to the following system dynamics and constraints:
 
-Here is the updated markdown table with separate definitions for both the initial state ($x_0$) and final state ($x_f$), alongside the time variables and other OCP components:
+$$\dot{x}(t) = f(t,x,u), \quad t \in [t_0, t_f]$$
+
+$$e_{lb} \leq e(t_0, t_f, x_0, x_f) \leq e_{ub}$$
+
+$$h_{lb} \leq h(t,x,u) \leq h_{ub}$$
+
+$$x_{lb} \leq x(t) \leq x_{ub}, \quad u_{lb} \leq u(t) \leq u_{ub}$$
+
+### Variable & Function Definitions
 
 | Name | Description | Shape |
 | --- | --- | --- |
@@ -52,33 +48,148 @@ Here is the updated markdown table with separate definitions for both the initia
 | $e_{lb}, e_{ub}$ | Boundary constraint bounds | $R^{n_e}$ |
 | $h_{lb}, h_{ub}$ | Path constraint bounds | $R^{n_h}$ |
 
+---
 
-## Numerical solution
+## 2. Discretization & Integration Methods
 
-### 1. Direct Multiple Shooting
+The framework supports multiple transcription strategies categorized into **Direct Multiple Shooting** and **Direct Collocation**:
 
-In multiple shooting, the time horizon is divided into intervals. The states at the start of each interval are treated as decision variables, and an ODE/DAE integrator is used to propagate the dynamics across each interval while enforcing continuity constraints between them.
-
-* **`fw_euler` (Forward Euler):** A native, explicit 1st-order integration scheme. Simple and fast, but requires small step sizes for stability and accuracy.
-* **`exp_mid` (Explicit Midpoint):** A native 2nd-order Runge-Kutta method. Offers better accuracy than Forward Euler with moderate computational overhead.
-* **`rk4` (Runge-Kutta 4th Order):** A standard high-accuracy 4th-order explicit integrator via CasADi. Widely used for smooth nonlinear systems.
-* **`cvodes` (CVodes Integrator):** A powerful adaptive-step ODE/DAE integrator from the SUNDIALS suite wrapped in CasADi. Ideal for stiff systems and high-precision requirements.
-* **`collocation` (CasADi Collocation Integrator):** Uses implicit collocation polynomials (like Radau or Legendre) within each multiple-shooting interval to handle difficult or stiff dynamics.
-
-### 2. Direct Collocation
-
-In direct collocation, the states and controls are parameterized over a mesh, and the continuous-time dynamics are approximated using implicit algebraic continuity equations at specific collocation points within each interval.
-
-* **`bw_euler` (Backward Euler):** An implicit 1st-order method. Highly stable for stiff systems, though overly diffusive/low accuracy.
-* **`trap` (Trapezoidal Method):** An implicit 2nd-order collocation method. Balances simplicity and accuracy well for a wide range of engineering problems.
-* **`her_sim` (Hermite-Simpson):** A higher-order implicit collocation method (typically yielding 3rd or 4th-order accuracy) that uses cubic polynomial approximations over the intervals, providing an excellent trade-off between accuracy and sparse NLP structure.
-
-The event constraints are evaluated at the boundaries and the path constraints are evaluated at the discrete grid points.
-The integral in objective is approximated via a left Riemann sum.
-
-If the OCP has free final or initial time, these are treated as free variables. Combining all the procedures leads to a sparse
-nonlinear optimization problem.
-
-## Optimization problem
+* **Direct Multiple Shooting (Native & CasADi Integrators):**
+* `fw_euler`: Forward Euler (explicit 1st order).
+* `exp_mid`: Explicit Midpoint (2nd order Runge-Kutta).
+* `rk4`: Runge-Kutta 4th order (via CasADi integrator).
+* `cvodes`: Adaptive-step ODE/DAE integrator from SUNDIALS (ideal for stiff systems).
+* `collocation`: Implicit collocation polynomials via CasADi.
 
 
+* **Direct Collocation (Implicit Methods):**
+* `bw_euler`: Backward Euler (implicit 1st order, highly stable).
+* `trap`: Trapezoidal collocation (implicit 2nd order).
+* `her_sim`: Hermite-Simpson collocation (cubic polynomial approximation).
+
+
+
+---
+
+## 3. Repository Structure
+
+```text
+├── trajopt.py   # Core Pydantic configuration & CasADi NLP transcription engine
+└── example.py   # Example script demonstrating setup, solving, and plotting
+
+```
+
+---
+
+## 4. Installation
+
+Ensure you have Python installed along with the required dependencies:
+
+```bash
+pip install casadi pydantic numpy matplotlib
+
+```
+
+---
+
+## 5. Quick Start & Usage Example
+
+Here is a brief example of how to configure and use `TrajOpt` in your script:
+
+```python
+import casadi as cs
+from trajopt import casadi_integrator, plot_solution, TrajOpt
+
+
+def low_thrust():
+    ocp_data = {}
+    ocp_data["nx"] = 4
+    ocp_data["nu"] = 2
+
+    # event and Mayer
+    t0s = cs.SX.sym("t0s")
+    tfs = cs.SX.sym("tfs")
+    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
+    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
+
+    # Lagrange dynamics and path
+    ts = cs.SX.sym("ts")
+    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
+    us = cs.SX.sym("us", ocp_data["nu"], 1)
+
+    # initial and final time
+    ocp_data["t0"] = cs.DM(0)
+    ocp_data["tf"] = None
+
+    # lagrange and mayer objective
+    ocp_data["L"] = None
+    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [tfs])
+
+    # event constraints
+    e = cs.vertcat(
+        x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5]), tfs
+    )
+    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
+    ocp_data["e_lb"] = cs.vcat([0] * 7 + [0])
+    ocp_data["e_ub"] = cs.vcat([0] * 7 + [100])
+
+    # dynamics
+    f = cs.vcat(
+        [
+            xs[2, :],
+            xs[3, :] / xs[0, :],
+            xs[3, :] ** 2 / xs[0, :] - 1 / xs[0, :] ** 2 + us[0, :],
+            -xs[2, :] * xs[3, :] / xs[0, :] + us[1, :],
+        ]
+    )
+    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
+
+    print(ocp_data['f'].which_depends('i1',['o0']))
+
+    method = casadi_integrator(
+        plugin="collocation",
+        plugin_options={
+            "interpolation_order": 4,
+            "collocation_scheme": "legendre",
+            "rootfinder":'kinsol',
+            "number_of_finite_elements": 1,
+            "simplify":True
+        },
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
+    )
+
+    ocp_data["method"] = method
+
+    ocp_data["u_lb"] = cs.DM([-0.01] * 2)
+    ocp_data["u_ub"] = cs.DM([0.01] * 2)
+
+    ocp_data["n"] = 100
+
+    trajopt = TrajOpt(**ocp_data)
+
+    nlp = trajopt.generate_NLP()
+    nlp["nlp"].solver("ipopt")
+
+    Xg = cs.vcat(
+        [
+            cs.linspace(1, 4, ocp_data["n"] + 1).T,
+            cs.linspace(0, 0, ocp_data["n"] + 1).T,
+            cs.linspace(0, 0, ocp_data["n"] + 1).T,
+            cs.linspace(1, 0.5, ocp_data["n"] + 1).T,
+        ]
+    )
+
+    nlp["nlp"].set_initial(nlp["X"], Xg)
+    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
+    nlp["nlp"].set_initial(nlp["tf"], 50)
+    sol = nlp["nlp"].solve()
+    plot_solution(sol, nlp)
+
+
+if __name__ == "__main__":
+    low_thrust()
+
+```
