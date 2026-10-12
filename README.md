@@ -6,7 +6,7 @@ A lightweight, robust, and strongly typed **Python based Trajectory Optimization
 
 ## Overview
 
-Solving Optimal Control Problems (OCPs) often requires writing boilerplate code to handle constraint dimension checks, bound mapping, and integrator setup. This repository provides a single-file core framework (`trajopt.py`) that abstracts these complexities while enforcing strict shape validation, automatic scaling, and clear separation between path and event constraints.
+Solving single phase Optimal Control Problems (OCPs) often requires writing boilerplate code to handle constraint dimension checks, bound mapping, and integrator setup. This repository provides a single-file core framework (`trajopt.py`) that abstracts these complexities while enforcing strict shape validation, automatic scaling, and clear separation between path and event constraints.
 
 ---
 

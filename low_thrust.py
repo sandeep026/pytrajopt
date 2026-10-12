@@ -28,11 +28,11 @@ def low_thrust():
 
     # event constraints
     e = cs.vertcat(
-        x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5]), tfs
+        x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5])
     )
     ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
-    ocp_data["e_lb"] = cs.vcat([0] * 7 + [0])
-    ocp_data["e_ub"] = cs.vcat([0] * 7 + [100])
+    ocp_data["e_lb"] = cs.vcat([0] * 7 )
+    ocp_data["e_ub"] = cs.vcat([0] * 7 )
 
     # dynamics
     f = cs.vcat(
@@ -66,8 +66,18 @@ def low_thrust():
 
     ocp_data["u_lb"] = cs.DM([-0.01] * 2)
     ocp_data["u_ub"] = cs.DM([0.01] * 2)
+    ocp_data['tf_lb'] = cs.DM([0])
+    ocp_data['tf_ub'] = cs.DM([50])
+
 
     ocp_data["n"] = 100
+
+    ocp_data['J_s']=cs.DM([50])
+    ocp_data['t_s']=cs.DM([50])
+    ocp_data['x_s']=cs.DM([4,25,0.1,1])
+    ocp_data['u_s']=cs.DM([0.01,0.01])
+    ocp_data['e_s']=cs.DM([4,25,0.1,1]+[4,0.1,1])
+    ocp_data['h_s']=None
 
     trajopt = TrajOpt(**ocp_data)
 
@@ -85,7 +95,7 @@ def low_thrust():
 
     nlp["nlp"].set_initial(nlp["X"], Xg)
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    nlp["nlp"].set_initial(nlp["tf"], 50)
+    nlp["nlp"].set_initial(nlp["tf"], 46)
     sol = nlp["nlp"].solve()
     plot_solution(sol, nlp)
 

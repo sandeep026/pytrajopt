@@ -61,22 +61,22 @@ def cart_costate():
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
     sol = nlp["nlp"].solve()
 
-    error_costate = cs.mmax(
-        cs.fabs(
-            sol.value(nlp["costate"])
-            - cs.vertcat(
-                cs.DM.ones(1, ocp_data["n"] + 1),
-                1 - 0.5 * cs.exp(cs.linspace(0, 2, ocp_data["n"] + 1).T),
-            )
-        )
-    )
+#    error_costate = cs.mmax(
+#        cs.fabs(
+#            sol.value(nlp["costate"])
+#            - cs.vertcat(
+#                cs.DM.ones(1, ocp_data["n"] + 1),
+#                1 - 0.5 * cs.exp(cs.linspace(0, 2, ocp_data["n"] + 1).T),
+#            )
+#        )
+#    )
 
-    t = np.linspace(0, 2, ocp_data["n"] + 1)
+    t = np.linspace(0, 2, ocp_data["n"] + 1)[1:]
     out = [
         sol.value(nlp["costate"])[0, :],
-        np.ones(ocp_data["n"] + 1),
+        np.ones(ocp_data["n"] ),
         sol.value(nlp["costate"])[1, :],
-        1 - 0.5 * np.exp(np.linspace(0, 2, ocp_data["n"] + 1)),
+        1 - 0.5 * np.exp(np.linspace(0, 2, ocp_data["n"] )),
     ]
     labels = [
         r"$\lambda_1$ (num)",

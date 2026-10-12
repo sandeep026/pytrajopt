@@ -210,6 +210,20 @@ class TrajOpt(BaseModel):
     t0_ub: cs.DM | None = None  # optional
     tf_lb: cs.DM | None = None  # optional
     tf_ub: cs.DM | None = None  # optional
+    # scale
+    J_s: cs.DM | None = None
+    x_s: cs.DM | None = None
+    u_s: cs.DM | None = None
+    e_s: cs.DM | None = None
+    h_s: cs.DM | None = None
+    t_s: cs.DM | None = None
+    # offset
+    x_o: cs.DM | None = None
+    u_o: cs.DM | None = None
+    t_o: cs.DM | None = None
+    # obj tuple[cs.DM,cs.DM] | None (1,0)
+    # constriant
+    # variables
 
     @field_validator("f", "L", "h")
     @classmethod
@@ -348,6 +362,7 @@ class TrajOpt(BaseModel):
         self.event_func_ip_check(self.get_event_funcs())
         self.func_shapes()
         self.check_lb_ub()
+        self.check_scale_offset()
 
         return self
 
@@ -532,6 +547,63 @@ class TrajOpt(BaseModel):
         TrajOpt.check_constraint_shapes(self.e, self.e_lb, self.e_ub, self.e.name())
         TrajOpt.check_lb_le_ub(self.e_lb, self.e_ub, "e")
 
+    def check_scale_offset(self):
+        
+        if self.J_s is None:
+            self.J_s=cs.DM(1)
+        if self.E is not None or self.L is not None:
+            if self.J_s.shape !=(1,1):
+                raise ValueError(f'Objective scaling factor must be scalar but received shape {self.J_s.shape}')
+            if self.J_s<0:
+                raise ValueError('Objective scaling factor must be positive. Negative scaling not allowed')
+
+        if self.t_s is None:
+            self.t_s=cs.DM(1)
+        if self.t0 is None or self.tf is None:
+            if self.t_s.shape!=(1,1):
+                raise ValueError(f'Shape of time scale must be (1,1)  but received {self.t_s.shape}')
+
+        if self.x_s is None:
+            self.x_s=cs.DM.ones(self.nx,1)
+        if self.x_s.shape!=(self.nx,1):
+            raise ValueError(f'Shape of state scale must be same as state vector ({self.nx},1)  but received {self.x_s.shape}')
+
+        if self.u_s is None:
+            self.u_s=cs.DM.ones(self.nu,1)
+        if self.u_s.shape!=(self.nu,1):
+            raise ValueError(f'Shape of control scale must be same as control vector ({self.nu},1)  but received {self.u_s.shape}')
+
+
+        if self.t_o is None:
+            self.t_o=cs.DM(0)
+        if self.t0 is None or self.tf is None:
+            if self.t_o.shape!=(1,1):
+                raise ValueError(f'Shape of time offset must be (1,1)  but received {self.t_o.shape}')
+
+
+        if self.x_o is None:
+            self.x_o=cs.DM.zeros(self.nx,1)
+        if self.x_o.shape!=(self.nx,1):
+            raise ValueError(f'Shape of state offset must be same as state vector ({self.nx},1)  but received {self.x_o.shape}')
+
+        if self.u_o is None:
+            self.u_o=cs.DM.zeros(self.nu,1)
+        if self.u_o.shape!=(self.nu,1):
+            raise ValueError(f'Shape of control offset must be same as control vector ({self.nu},1)  but received {self.u_o.shape}')
+
+
+        if self.e_s is None:
+            self.e_s=cs.DM.ones(self.e.size_out(0))
+        if self.e_s.shape!=self.e.size_out(0):
+            raise ValueError(f'Shape of event constraint scale must be same as event constraint ({self.e.size_out(0)})  but received {self.e_s.shape}')
+
+
+        if self.h is not None:
+            if self.h_s is None:
+                self.h_s=cs.DM.ones(self.h.size_out(0))
+            if self.h_s.shape!=self.h.size_out(0):
+                raise ValueError(f'Shape of path constraint scale must be same as path constraint ({self.h.size_out(0)})  but received {self.h_s.shape}')
+
     @classmethod
     def check_constraint_shapes(cls, g: cs.Function, lb: cs.DM, ub: cs.DM, name: str):
         """
@@ -640,20 +712,26 @@ class TrajOpt(BaseModel):
         if self.t0 is None:
             t0 = nlp.variable()
             dec_var.append(t0)
+            nlp.set_linear_scale(t0,self.t_s,self.t_o)
         else:
             t0 = self.t0
 
         if self.tf is None:
             tf = nlp.variable()
             dec_var.append(tf)
+            nlp.set_linear_scale(tf,self.t_s,self.t_o)
         else:
             tf = self.tf
 
         t = cs.linspace(t0, tf, n + 1).T
 
         X = nlp.variable(nx, n + 1)
+        nlp.set_linear_scale(X,cs.repmat(self.x_s,1,self.n+1),cs.repmat(self.x_o,1,self.n+1))
+
         dec_var.append(X)
         U = nlp.variable(nu, n)
+        nlp.set_linear_scale(U,cs.repmat(self.u_s,1,self.n),cs.repmat(self.u_o,1,self.n))
+
         dec_var.append(U)
 
         # decision vector
@@ -679,11 +757,13 @@ class TrajOpt(BaseModel):
         cons = []
         cons_lb = []
         cons_ub = []
+        cons_scale=[]
         # event constraints
         e = self.e(*event_ip)
         cons.append(e)
         cons_lb.append(self.e_lb)
         cons_ub.append(self.e_ub)
+        cons_scale.append(self.e_s)
 
         # dynamics
         f = self.get_discrete_dynamics(t, X, U)
@@ -691,6 +771,7 @@ class TrajOpt(BaseModel):
         zr = cs.DM.zeros(f.shape)
         cons_lb.append(zr)
         cons_ub.append(zr)
+        cons_scale.append(cs.repmat(self.x_s,1,n))
 
         # path constriants
         if self.h is not None:
@@ -699,44 +780,54 @@ class TrajOpt(BaseModel):
             cons.append(h)
             cons_lb.append(cs.repmat(self.h_lb, 1, n + 1))
             cons_ub.append(cs.repmat(self.h_ub, 1, n + 1))
+            cons_scale.append(cs.repmat(self.h_s,1,n+1))
 
         # constraints
         G = cs.vcat([cs.vec(i) for i in cons])
         G_lb = cs.vcat([cs.vec(i) for i in cons_lb])
         G_ub = cs.vcat([cs.vec(i) for i in cons_ub])
+        G_s =cs.vcat([cs.vec(i) for i in cons_scale])
 
         # simple bounds
         cons_simple_lb = []
         cons_simple_ub = []
+        cons_simple_scale=[]
 
         if self.t0 is None:
             t0_lb = self.t0_lb
             t0_ub = self.t0_ub
             cons_simple_lb.append(t0_lb)
             cons_simple_ub.append(t0_ub)
+            cons_simple_scale.append(self.t_s)
 
         if self.tf is None:
             tf_lb = self.tf_lb
             tf_ub = self.tf_ub
             cons_simple_lb.append(tf_lb)
             cons_simple_ub.append(tf_ub)
+            cons_simple_scale.append(self.t_s)
+
 
         X_lb = cs.repmat(self.x_lb, 1, n + 1)
         X_ub = cs.repmat(self.x_ub, 1, n + 1)
         cons_simple_lb.append(X_lb)
         cons_simple_ub.append(X_ub)
+        cons_simple_scale.append(cs.repmat(self.x_s, 1, n + 1))
         U_lb = cs.repmat(self.u_lb, 1, n)
         U_ub = cs.repmat(self.u_ub, 1, n)
         cons_simple_lb.append(U_lb)
         cons_simple_ub.append(U_ub)
+        cons_simple_scale.append(cs.repmat(self.u_s, 1, n))
+
 
         W_lb = cs.vcat([cs.vec(i) for i in cons_simple_lb])
         W_ub = cs.vcat([cs.vec(i) for i in cons_simple_ub])
+        W_s  = cs.vcat([cs.vec(i) for i in cons_simple_scale])
 
         # assemble
-        nlp.minimize(objective)
-        nlp.subject_to(nlp.bounded(G_lb, G, G_ub))
-        nlp.subject_to(nlp.bounded(W_lb, W, W_ub))
+        nlp.minimize(objective,float(self.J_s))
+        nlp.subject_to(nlp.bounded(G_lb, G, G_ub),G_s)
+        nlp.subject_to(nlp.bounded(W_lb, W, W_ub),W_s)
 
         trajopt = {}
         trajopt["nlp"] = nlp
@@ -755,14 +846,13 @@ class TrajOpt(BaseModel):
             trajopt["hamiltonian"] = np.full(shape=(1, n + 1), fill_value=np.nan)
         else:
             if self.L is not None:
-                ham_L = self.L.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
+                ham_L = self.L.map(n +1, "serial")(t, X,cs.hcat([U,U[:,-1]]))
             else:
                 ham_L = 0
             trajopt["costate"] = self.get_costate(nlp.lam_g)
             trajopt["hamiltonian"] = ham_L + cs.sum1(
                 trajopt["costate"]
-                * self.f.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
-            )
+                * self.f.map(n+1 , "serial")(t, X, cs.hcat([U,U[:,-1]])))    
 
         return trajopt
 
@@ -816,7 +906,7 @@ class TrajOpt(BaseModel):
         ne = self.e.size_out(0)[0]
         lam_x0 = -lam_g[0:nx, :]
         lam_dyn = -lam_g[ne : ne + nx * n, :]
-        costate = cs.hcat([lam_x0, cs.reshape(lam_dyn, nx, n)])
+        costate = cs.hcat([lam_x0,cs.reshape(lam_dyn, nx, n)])
         return costate
 
 
@@ -826,7 +916,7 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
         plt.figure()
 
         if name == "u":
-            plt.step(t.ravel()[0:-1], var[i, :].ravel())
+            plt.step(t.ravel(), var[i, :].ravel())
         else:
             if np.isnan(var).all():
                 print(
@@ -841,14 +931,16 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
 
 
 def plot_solution(sol: cs.OptiSol, nlp: dict):
-    txlam = sol.value(nlp["t"])
-    tu = txlam
+    tx = sol.value(nlp["t"])
+    tu = tx[0:-1]
+    tlam=tx
+    tham=tlam
+    tvars=[tx,tu,tlam,tham]
     X = sol.value(nlp["X"]).reshape(nlp["X"].shape)
     U = sol.value(nlp["U"]).reshape(nlp["U"].shape)
     lam = sol.value(nlp["costate"]).reshape(nlp["costate"].shape)
     ham = sol.value(nlp["hamiltonian"]).reshape(nlp["hamiltonian"].shape)
 
     with PdfPages("solution.pdf") as pdf:
-        for name, var in zip(["x", "u", r"\lambda", r"H"], [X, U, lam, ham]):
-            t = txlam if name != "u" else tu
-            plotting(t, var, name, pdf=pdf)
+        for name, var, tvar in zip(["x", "u", r"\lambda", r"H"], [X, U, lam, ham],tvars):
+            plotting(tvar, var, name, pdf=pdf)
