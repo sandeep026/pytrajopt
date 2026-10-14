@@ -74,9 +74,9 @@ def low_thrust():
 
     ocp_data['J_s']=cs.DM([50])
     ocp_data['t_s']=cs.DM([50])
-    ocp_data['x_s']=cs.DM([4,25,0.1,1])
+    ocp_data['x_s']=cs.DM([1,10,1e-2,1e-1])
     ocp_data['u_s']=cs.DM([0.01,0.01])
-    ocp_data['e_s']=cs.DM([4,25,0.1,1]+[4,0.1,1])
+    ocp_data['e_s']=cs.DM([4,10,0.1,1]+[4,0.1,1])
     ocp_data['h_s']=None
 
     trajopt = TrajOpt(**ocp_data)

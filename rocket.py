@@ -48,30 +48,30 @@ def rocket():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
 
-    method = 'exp_mid'
+    method = 'fw_euler'
 
     ocp_data["method"] = method
 
     ocp_data["u_lb"] = cs.DM([0.0])
     ocp_data['x_lb'] = cs.DM([-cs.DM.inf(),-cs.DM.inf(),0])
 
-    ocp_data["n"] = 10000
+    ocp_data["n"] = 100
 
-    ocp_data['J_s']=cs.DM([3e5])
-    ocp_data['x_s']=cs.DM([1e5,2e3,3e5])
-    ocp_data['u_s']=cs.DM([1e8])
-    ocp_data['e_s']=cs.DM([1e5,2e3,3e5]+[1e5])
+    #ocp_data['J_s']=cs.DM([3e5])
+    #ocp_data['x_s']=cs.DM([1e5,2e3,3e5])
+    #ocp_data['u_s']=cs.DM([1e8])
+    #ocp_data['e_s']=cs.DM([1e5,2e3,3e5]+[1e5])
 
     trajopt = TrajOpt(**ocp_data)
 
     nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt")
+    nlp["nlp"].solver("ipopt",{'ipopt.nlp_scaling_method':'none'})
 
     Xg = cs.vcat(
         [
-            cs.linspace(0, 1e5, ocp_data["n"] + 1).T,
+            cs.linspace(0, 0*1e5, ocp_data["n"] + 1).T,
             cs.linspace(0, 0, ocp_data["n"] + 1).T,
-            cs.linspace(5e5, 5e5, ocp_data["n"] + 1).T,
+            cs.linspace(1e5, 1e5, ocp_data["n"] + 1).T,
         ]
     )
 

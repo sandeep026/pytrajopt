@@ -548,61 +548,54 @@ class TrajOpt(BaseModel):
         TrajOpt.check_lb_le_ub(self.e_lb, self.e_ub, "e")
 
     def check_scale_offset(self):
+
+        # assign defaults
+        # same as calling them without scaling them
+
+        names=['J_s', 'x_s', 'u_s', 'e_s']
+        shapes=[(1,1),(self.nx,1),(self.nu,1),self.e.size_out(0)]
+
+        for name,shape in zip(names,shapes):
+            if getattr(self,name) is None:
+                setattr(self,name,cs.DM.ones(shape))
+            TrajOpt.check_nan(getattr(self,name),name)
+            TrajOpt.check_shape(getattr(self,name),shape,name)
+                
+        names=['x_o','u_o']
+        shapes=[(self.nx,1),(self.nu,1)]
+
+        for name,shape in zip(names,shapes):
+            if getattr(self,name) is None:
+                setattr(self,name,cs.DM.zeros(shape))
+            TrajOpt.check_nan(getattr(self,name),name)
+            TrajOpt.check_shape(getattr(self,name),shape,name)
+
+
+        if self.J_s is not None and self.J_s<=0:
+            raise ValueError('Objective scaling factor must be positive. Negative scaling not allowed')
+
+        if self.t0 is None or self.tf is None:
+            names=['t_s','t_o']
+            defaults=[cs.DM(1),cs.DM(0)]
+            for name,default in zip(names,defaults):
+                if getattr(self,name) is None:
+                    setattr(self,name,default)
+                TrajOpt.check_nan(getattr(self,name),name)
+                TrajOpt.check_shape(getattr(self,name),(1,1),name)
+        else:
+            if self.t_s is not None or self.t_o is not None:
+                raise ValueError('Cannot set scales for time variables when both t0 and tf are fixed')
+
         
-        if self.J_s is None:
-            self.J_s=cs.DM(1)
-        if self.E is not None or self.L is not None:
-            if self.J_s.shape !=(1,1):
-                raise ValueError(f'Objective scaling factor must be scalar but received shape {self.J_s.shape}')
-            if self.J_s<0:
-                raise ValueError('Objective scaling factor must be positive. Negative scaling not allowed')
-
-        if self.t_s is None:
-            self.t_s=cs.DM(1)
-        if self.t0 is None or self.tf is None:
-            if self.t_s.shape!=(1,1):
-                raise ValueError(f'Shape of time scale must be (1,1)  but received {self.t_s.shape}')
-
-        if self.x_s is None:
-            self.x_s=cs.DM.ones(self.nx,1)
-        if self.x_s.shape!=(self.nx,1):
-            raise ValueError(f'Shape of state scale must be same as state vector ({self.nx},1)  but received {self.x_s.shape}')
-
-        if self.u_s is None:
-            self.u_s=cs.DM.ones(self.nu,1)
-        if self.u_s.shape!=(self.nu,1):
-            raise ValueError(f'Shape of control scale must be same as control vector ({self.nu},1)  but received {self.u_s.shape}')
-
-
-        if self.t_o is None:
-            self.t_o=cs.DM(0)
-        if self.t0 is None or self.tf is None:
-            if self.t_o.shape!=(1,1):
-                raise ValueError(f'Shape of time offset must be (1,1)  but received {self.t_o.shape}')
-
-
-        if self.x_o is None:
-            self.x_o=cs.DM.zeros(self.nx,1)
-        if self.x_o.shape!=(self.nx,1):
-            raise ValueError(f'Shape of state offset must be same as state vector ({self.nx},1)  but received {self.x_o.shape}')
-
-        if self.u_o is None:
-            self.u_o=cs.DM.zeros(self.nu,1)
-        if self.u_o.shape!=(self.nu,1):
-            raise ValueError(f'Shape of control offset must be same as control vector ({self.nu},1)  but received {self.u_o.shape}')
-
-
-        if self.e_s is None:
-            self.e_s=cs.DM.ones(self.e.size_out(0))
-        if self.e_s.shape!=self.e.size_out(0):
-            raise ValueError(f'Shape of event constraint scale must be same as event constraint ({self.e.size_out(0)})  but received {self.e_s.shape}')
-
-
         if self.h is not None:
             if self.h_s is None:
                 self.h_s=cs.DM.ones(self.h.size_out(0))
-            if self.h_s.shape!=self.h.size_out(0):
-                raise ValueError(f'Shape of path constraint scale must be same as path constraint ({self.h.size_out(0)})  but received {self.h_s.shape}')
+            TrajOpt.check_nan(self.h_s,'h_s')
+            TrajOpt.check_shape(self.h_s,self.h.size_out(0),'h_s')
+        else:
+            if self.h_s is not None:
+                raise ValueError('Cannot set scales for OCP with no path constraints')
+
 
     @classmethod
     def check_constraint_shapes(cls, g: cs.Function, lb: cs.DM, ub: cs.DM, name: str):
@@ -843,16 +836,8 @@ class TrajOpt(BaseModel):
             trajopt["costate"] = np.full(
                 shape=self.get_costate(nlp.lam_g).shape, fill_value=np.nan
             )
-            trajopt["hamiltonian"] = np.full(shape=(1, n + 1), fill_value=np.nan)
         else:
-            if self.L is not None:
-                ham_L = self.L.map(n +1, "serial")(t, X,cs.hcat([U,U[:,-1]]))
-            else:
-                ham_L = 0
             trajopt["costate"] = self.get_costate(nlp.lam_g)
-            trajopt["hamiltonian"] = ham_L + cs.sum1(
-                trajopt["costate"]
-                * self.f.map(n+1 , "serial")(t, X, cs.hcat([U,U[:,-1]])))    
 
         return trajopt
 
@@ -904,14 +889,13 @@ class TrajOpt(BaseModel):
         nx = self.nx
         n = self.n
         ne = self.e.size_out(0)[0]
-        lam_x0 = -lam_g[0:nx, :]
         lam_dyn = -lam_g[ne : ne + nx * n, :]
-        costate = cs.hcat([lam_x0,cs.reshape(lam_dyn, nx, n)])
+        costate = cs.reshape(lam_dyn, nx, n)
         return costate
 
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
-    plt.style.use("pub_qual.mplstyle")
+    #plt.style.use("./pub_qual.mplstyle")
     for i in range(var.shape[0]):
         plt.figure()
 
@@ -922,6 +906,7 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
                 print(
                     "Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler or exp_mid"
                 )
+
             plt.plot(t.ravel(), var[i, :].ravel())
         plt.ylabel(rf"${name}_{i}$")
         plt.xlabel("time [s]")
@@ -933,14 +918,12 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
 def plot_solution(sol: cs.OptiSol, nlp: dict):
     tx = sol.value(nlp["t"])
     tu = tx[0:-1]
-    tlam=tx
-    tham=tlam
-    tvars=[tx,tu,tlam,tham]
+    tlam=tx[1:]
+    tvars=[tx,tu,tlam]
     X = sol.value(nlp["X"]).reshape(nlp["X"].shape)
     U = sol.value(nlp["U"]).reshape(nlp["U"].shape)
     lam = sol.value(nlp["costate"]).reshape(nlp["costate"].shape)
-    ham = sol.value(nlp["hamiltonian"]).reshape(nlp["hamiltonian"].shape)
 
     with PdfPages("solution.pdf") as pdf:
-        for name, var, tvar in zip(["x", "u", r"\lambda", r"H"], [X, U, lam, ham],tvars):
+        for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam],tvars):
             plotting(tvar, var, name, pdf=pdf)
