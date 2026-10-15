@@ -959,7 +959,7 @@ def check_feasibility(ocp_data:dict,nlp:dict,sol:cs.OptiSol):
         return f(t, x, zoh(t)).full().flatten()
 
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
-    options = {"rtol": 1e-5, "atol": 1e-8}
+    options = {"rtol": 1e-12, "atol": 1e-12}
     sol = solve_ivp(f_solve_ivp, [tg[0],tg[-1]], x0, "LSODA", td, options)
     if sol.success is False:
         raise ValueError("Time marching failed")
