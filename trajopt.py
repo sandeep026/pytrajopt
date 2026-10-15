@@ -13,6 +13,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from scipy.interpolate import make_interp_spline
 
 
 class casadi_integrator(BaseModel):
@@ -927,3 +928,23 @@ def plot_solution(sol: cs.OptiSol, nlp: dict):
     with PdfPages("solution.pdf") as pdf:
         for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam],tvars):
             plotting(tvar, var, name, pdf=pdf)
+
+def pc_interp(t:np.ndarray,U:np.ndarray):
+    if U.ndim==2:
+        U=np.hstack([U ,U[:,-1]])
+        axis=1
+    else:
+        U=np.hstack([U ,U[-1]])
+        axis=0
+    zoh = make_interp_spline(t, U, k=0, axis=axis)
+    return zoh
+
+t=np.array([1,2,3,4])
+u=np.array([3,5,1])
+zoh=pc_interp(t,u)
+print(zoh(2.9))
+td=np.linspace(1,4,500)
+plt.plot(td,zoh(td))
+plt.plot(t,zoh(t),'o')
+plt.grid()
+plt.show()
