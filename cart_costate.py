@@ -1,7 +1,7 @@
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from trajopt import TrajOpt, casadi_integrator, plot_solution
+from trajopt import TrajOpt, casadi_integrator, plot_solution, check_feasibility
 
 
 def cart_costate():
@@ -61,15 +61,6 @@ def cart_costate():
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
     sol = nlp["nlp"].solve()
 
-#    error_costate = cs.mmax(
-#        cs.fabs(
-#            sol.value(nlp["costate"])
-#            - cs.vertcat(
-#                cs.DM.ones(1, ocp_data["n"] + 1),
-#                1 - 0.5 * cs.exp(cs.linspace(0, 2, ocp_data["n"] + 1).T),
-#            )
-#        )
-#    )
 
     t = np.linspace(0, 2, ocp_data["n"] + 1)[1:]
     out = [
@@ -91,6 +82,9 @@ def cart_costate():
     plt.ylabel('costates (numerical vs. analytical)')
     plt.legend()
     plt.show()
+
+    plot_solution(sol,nlp)
+    check_feasibility(ocp_data,nlp,sol)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import casadi as cs
 import numpy as np
-from trajopt import casadi_integrator, plot_solution, TrajOpt
+from trajopt import TrajOpt, casadi_integrator, check_feasibility, plot_solution
+
 
 def crane():
     # ensure initial condition placed first in event constraint to estimate correct costate at t0
@@ -87,8 +88,10 @@ def crane():
     nlp["nlp"].solver("ipopt", {"detect_simple_bounds": False})
     nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    sol=nlp["nlp"].solve()
-    plot_solution(sol,nlp)
+    sol = nlp["nlp"].solve()
+    plot_solution(sol, nlp)
+    check_feasibility(ocp_data, nlp, sol)
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     crane()
