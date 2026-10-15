@@ -13,6 +13,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from scipy.integrate import solve_ivp
 from scipy.interpolate import make_interp_spline
 
 
@@ -553,50 +554,51 @@ class TrajOpt(BaseModel):
         # assign defaults
         # same as calling them without scaling them
 
-        names=['J_s', 'x_s', 'u_s', 'e_s']
-        shapes=[(1,1),(self.nx,1),(self.nu,1),self.e.size_out(0)]
+        names = ["J_s", "x_s", "u_s", "e_s"]
+        shapes = [(1, 1), (self.nx, 1), (self.nu, 1), self.e.size_out(0)]
 
-        for name,shape in zip(names,shapes):
-            if getattr(self,name) is None:
-                setattr(self,name,cs.DM.ones(shape))
-            TrajOpt.check_nan(getattr(self,name),name)
-            TrajOpt.check_shape(getattr(self,name),shape,name)
-                
-        names=['x_o','u_o']
-        shapes=[(self.nx,1),(self.nu,1)]
+        for name, shape in zip(names, shapes):
+            if getattr(self, name) is None:
+                setattr(self, name, cs.DM.ones(shape))
+            TrajOpt.check_nan(getattr(self, name), name)
+            TrajOpt.check_shape(getattr(self, name), shape, name)
 
-        for name,shape in zip(names,shapes):
-            if getattr(self,name) is None:
-                setattr(self,name,cs.DM.zeros(shape))
-            TrajOpt.check_nan(getattr(self,name),name)
-            TrajOpt.check_shape(getattr(self,name),shape,name)
+        names = ["x_o", "u_o"]
+        shapes = [(self.nx, 1), (self.nu, 1)]
 
+        for name, shape in zip(names, shapes):
+            if getattr(self, name) is None:
+                setattr(self, name, cs.DM.zeros(shape))
+            TrajOpt.check_nan(getattr(self, name), name)
+            TrajOpt.check_shape(getattr(self, name), shape, name)
 
-        if self.J_s is not None and self.J_s<=0:
-            raise ValueError('Objective scaling factor must be positive. Negative scaling not allowed')
+        if self.J_s is not None and self.J_s <= 0:
+            raise ValueError(
+                "Objective scaling factor must be positive. Negative scaling not allowed"
+            )
 
         if self.t0 is None or self.tf is None:
-            names=['t_s','t_o']
-            defaults=[cs.DM(1),cs.DM(0)]
-            for name,default in zip(names,defaults):
-                if getattr(self,name) is None:
-                    setattr(self,name,default)
-                TrajOpt.check_nan(getattr(self,name),name)
-                TrajOpt.check_shape(getattr(self,name),(1,1),name)
+            names = ["t_s", "t_o"]
+            defaults = [cs.DM(1), cs.DM(0)]
+            for name, default in zip(names, defaults):
+                if getattr(self, name) is None:
+                    setattr(self, name, default)
+                TrajOpt.check_nan(getattr(self, name), name)
+                TrajOpt.check_shape(getattr(self, name), (1, 1), name)
         else:
             if self.t_s is not None or self.t_o is not None:
-                raise ValueError('Cannot set scales for time variables when both t0 and tf are fixed')
+                raise ValueError(
+                    "Cannot set scales for time variables when both t0 and tf are fixed"
+                )
 
-        
         if self.h is not None:
             if self.h_s is None:
-                self.h_s=cs.DM.ones(self.h.size_out(0))
-            TrajOpt.check_nan(self.h_s,'h_s')
-            TrajOpt.check_shape(self.h_s,self.h.size_out(0),'h_s')
+                self.h_s = cs.DM.ones(self.h.size_out(0))
+            TrajOpt.check_nan(self.h_s, "h_s")
+            TrajOpt.check_shape(self.h_s, self.h.size_out(0), "h_s")
         else:
             if self.h_s is not None:
-                raise ValueError('Cannot set scales for OCP with no path constraints')
-
+                raise ValueError("Cannot set scales for OCP with no path constraints")
 
     @classmethod
     def check_constraint_shapes(cls, g: cs.Function, lb: cs.DM, ub: cs.DM, name: str):
@@ -706,25 +708,29 @@ class TrajOpt(BaseModel):
         if self.t0 is None:
             t0 = nlp.variable()
             dec_var.append(t0)
-            nlp.set_linear_scale(t0,self.t_s,self.t_o)
+            nlp.set_linear_scale(t0, self.t_s, self.t_o)
         else:
             t0 = self.t0
 
         if self.tf is None:
             tf = nlp.variable()
             dec_var.append(tf)
-            nlp.set_linear_scale(tf,self.t_s,self.t_o)
+            nlp.set_linear_scale(tf, self.t_s, self.t_o)
         else:
             tf = self.tf
 
         t = cs.linspace(t0, tf, n + 1).T
 
         X = nlp.variable(nx, n + 1)
-        nlp.set_linear_scale(X,cs.repmat(self.x_s,1,self.n+1),cs.repmat(self.x_o,1,self.n+1))
+        nlp.set_linear_scale(
+            X, cs.repmat(self.x_s, 1, self.n + 1), cs.repmat(self.x_o, 1, self.n + 1)
+        )
 
         dec_var.append(X)
         U = nlp.variable(nu, n)
-        nlp.set_linear_scale(U,cs.repmat(self.u_s,1,self.n),cs.repmat(self.u_o,1,self.n))
+        nlp.set_linear_scale(
+            U, cs.repmat(self.u_s, 1, self.n), cs.repmat(self.u_o, 1, self.n)
+        )
 
         dec_var.append(U)
 
@@ -751,7 +757,7 @@ class TrajOpt(BaseModel):
         cons = []
         cons_lb = []
         cons_ub = []
-        cons_scale=[]
+        cons_scale = []
         # event constraints
         e = self.e(*event_ip)
         cons.append(e)
@@ -765,7 +771,7 @@ class TrajOpt(BaseModel):
         zr = cs.DM.zeros(f.shape)
         cons_lb.append(zr)
         cons_ub.append(zr)
-        cons_scale.append(cs.repmat(self.x_s,1,n))
+        cons_scale.append(cs.repmat(self.x_s, 1, n))
 
         # path constriants
         if self.h is not None:
@@ -774,18 +780,18 @@ class TrajOpt(BaseModel):
             cons.append(h)
             cons_lb.append(cs.repmat(self.h_lb, 1, n + 1))
             cons_ub.append(cs.repmat(self.h_ub, 1, n + 1))
-            cons_scale.append(cs.repmat(self.h_s,1,n+1))
+            cons_scale.append(cs.repmat(self.h_s, 1, n + 1))
 
         # constraints
         G = cs.vcat([cs.vec(i) for i in cons])
         G_lb = cs.vcat([cs.vec(i) for i in cons_lb])
         G_ub = cs.vcat([cs.vec(i) for i in cons_ub])
-        G_s =cs.vcat([cs.vec(i) for i in cons_scale])
+        G_s = cs.vcat([cs.vec(i) for i in cons_scale])
 
         # simple bounds
         cons_simple_lb = []
         cons_simple_ub = []
-        cons_simple_scale=[]
+        cons_simple_scale = []
 
         if self.t0 is None:
             t0_lb = self.t0_lb
@@ -801,7 +807,6 @@ class TrajOpt(BaseModel):
             cons_simple_ub.append(tf_ub)
             cons_simple_scale.append(self.t_s)
 
-
         X_lb = cs.repmat(self.x_lb, 1, n + 1)
         X_ub = cs.repmat(self.x_ub, 1, n + 1)
         cons_simple_lb.append(X_lb)
@@ -813,15 +818,14 @@ class TrajOpt(BaseModel):
         cons_simple_ub.append(U_ub)
         cons_simple_scale.append(cs.repmat(self.u_s, 1, n))
 
-
         W_lb = cs.vcat([cs.vec(i) for i in cons_simple_lb])
         W_ub = cs.vcat([cs.vec(i) for i in cons_simple_ub])
-        W_s  = cs.vcat([cs.vec(i) for i in cons_simple_scale])
+        W_s = cs.vcat([cs.vec(i) for i in cons_simple_scale])
 
         # assemble
-        nlp.minimize(objective,float(self.J_s))
-        nlp.subject_to(nlp.bounded(G_lb, G, G_ub),G_s)
-        nlp.subject_to(nlp.bounded(W_lb, W, W_ub),W_s)
+        nlp.minimize(objective, float(self.J_s))
+        nlp.subject_to(nlp.bounded(G_lb, G, G_ub), G_s)
+        nlp.subject_to(nlp.bounded(W_lb, W, W_ub), W_s)
 
         trajopt = {}
         trajopt["nlp"] = nlp
@@ -894,9 +898,8 @@ class TrajOpt(BaseModel):
         costate = cs.reshape(lam_dyn, nx, n)
         return costate
 
-
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
-    #plt.style.use("./pub_qual.mplstyle")
+    # plt.style.use("./pub_qual.mplstyle")
     for i in range(var.shape[0]):
         plt.figure()
 
@@ -919,32 +922,79 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
 def plot_solution(sol: cs.OptiSol, nlp: dict):
     tx = sol.value(nlp["t"])
     tu = tx[0:-1]
-    tlam=tx[1:]
-    tvars=[tx,tu,tlam]
+    tlam = tx[1:]
+    tvars = [tx, tu, tlam]
     X = sol.value(nlp["X"]).reshape(nlp["X"].shape)
     U = sol.value(nlp["U"]).reshape(nlp["U"].shape)
     lam = sol.value(nlp["costate"]).reshape(nlp["costate"].shape)
 
     with PdfPages("solution.pdf") as pdf:
-        for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam],tvars):
+        for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam], tvars):
             plotting(tvar, var, name, pdf=pdf)
 
-def pc_interp(t:np.ndarray,U:np.ndarray):
-    if U.ndim==2:
-        U=np.hstack([U ,U[:,-1]])
-        axis=1
+
+def pc_interp(t: np.ndarray, U: np.ndarray):
+    if U.ndim == 2:
+        U = np.hstack([U, U[:, -1].reshape(-1,1)])
+        axis = 1
     else:
-        U=np.hstack([U ,U[-1]])
-        axis=0
+        U = np.hstack([U, U[-1]])
+        axis = 0
     zoh = make_interp_spline(t, U, k=0, axis=axis)
     return zoh
 
-t=np.array([1,2,3,4])
-u=np.array([3,5,1])
-zoh=pc_interp(t,u)
-print(zoh(2.9))
-td=np.linspace(1,4,500)
-plt.plot(td,zoh(td))
-plt.plot(t,zoh(t),'o')
-plt.grid()
-plt.show()
+
+def check_feasibility(ocp_data:dict,nlp:dict,sol:cs.OptiSol):
+
+    X=sol.value(nlp['X'])
+    U=sol.value(nlp['U'])
+    tg=sol.value(nlp['t'])
+    x0=X[:,0]
+    f=ocp_data['f']
+
+
+    zoh = pc_interp(tg, U)
+
+    def f_solve_ivp(t, x):
+        return f(t, x, zoh(t)).full().flatten()
+
+    td = np.linspace(tg[0], tg[-1], len(tg) * 10)
+    options = {"rtol": 1e-5, "atol": 1e-8}
+    sol = solve_ivp(f_solve_ivp, [tg[0],tg[-1]], x0, "LSODA", td, options)
+    if sol.success is False:
+        raise ValueError("Time marching failed")
+
+    with PdfPages("feasibilty.pdf") as pdf:
+        for i in range(x0.size):
+            plt.figure()
+            if X.ndim==1:
+                plt.plot(tg,X)
+                plt.plot(td,sol.y,label='LSODA')
+            else:
+                plt.plot(tg,X[i,:],'o',label='NLP')
+                plt.plot(td,sol.y[i,:],'--',label='LSODA')
+            plt.xlabel('time [s]')
+            plt.ylabel(rf'$x_{i}$')
+            plt.grid(True)
+            plt.legend()
+            pdf.savefig(bbox_inches="tight")
+            plt.close()
+
+        if U.ndim==1:
+            nu=1
+        else:
+            nu=U.shape[0]
+        Ud=zoh(td)
+        for i in range(nu):
+            if U.ndim==1:
+                plt.plot(tg[0:-1],U,'o',label='NLP')
+                plt.plot(td,Ud,'--',label='ZOH')
+            else:
+                plt.plot(tg[0:-1],U[i,:],'o',label='NLP')
+                plt.plot(td,Ud[i,:],'--',label='ZOH')
+            plt.xlabel('time [s]')
+            plt.ylabel(rf'$u_{i}$')
+            plt.grid(True)
+            plt.legend()
+            pdf.savefig(bbox_inches="tight")
+            plt.close()

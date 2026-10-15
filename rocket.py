@@ -1,5 +1,5 @@
 import casadi as cs
-from trajopt import casadi_integrator, plot_solution, TrajOpt
+from trajopt import casadi_integrator, plot_solution, TrajOpt, check_feasibility
 
 
 def rocket():
@@ -48,7 +48,21 @@ def rocket():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
 
-    method = 'fw_euler'
+    method = 'exp_mid'
+    method = casadi_integrator(
+        plugin="collocation",
+        plugin_options={
+            "interpolation_order": 3,
+            "collocation_scheme": "legendre",
+            "rootfinder":'kinsol',
+            "number_of_finite_elements": 1,
+            "simplify":True
+        },
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
+    )
 
     ocp_data["method"] = method
 
@@ -65,7 +79,7 @@ def rocket():
     trajopt = TrajOpt(**ocp_data)
 
     nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt",{'ipopt.nlp_scaling_method':'none'})
+    nlp["nlp"].solver("ipopt")
 
     Xg = cs.vcat(
         [
@@ -79,6 +93,7 @@ def rocket():
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
     sol = nlp["nlp"].solve()
     plot_solution(sol, nlp)
+    check_feasibility(ocp_data,nlp,sol)
 
 if __name__=='__main__':
     rocket()

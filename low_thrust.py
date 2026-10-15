@@ -1,5 +1,5 @@
 import casadi as cs
-from trajopt import casadi_integrator, plot_solution, TrajOpt
+from trajopt import casadi_integrator, plot_solution, TrajOpt, check_feasibility
 
 
 def low_thrust():
@@ -70,7 +70,7 @@ def low_thrust():
     ocp_data['tf_ub'] = cs.DM([50])
 
 
-    ocp_data["n"] = 100
+    ocp_data["n"] = 25
 
     ocp_data['J_s']=cs.DM([50])
     ocp_data['t_s']=cs.DM([50])
@@ -97,8 +97,11 @@ def low_thrust():
     nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
     nlp["nlp"].set_initial(nlp["tf"], 46)
     sol = nlp["nlp"].solve()
-    plot_solution(sol, nlp)
+    plot_solution(sol, nlp) 
 
+
+    check_feasibility(ocp_data,nlp,sol)
+    
 
 if __name__ == "__main__":
     low_thrust()
