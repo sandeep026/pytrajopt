@@ -88,7 +88,7 @@ class casadi_integrator(BaseModel):
         """
         casadi_integrator=='casadi_integrator' must return true
 
-        this functionality added to keep trajopt code clean
+        this functionality added to keep Ocp code clean
 
         Parameters
         ----------
@@ -179,7 +179,7 @@ dis_methods = (
 )
 
 
-class TrajOpt(BaseModel):
+class Ocp(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     # dimensions of state control and discretization intervals
     nx: PositiveInt
@@ -345,7 +345,7 @@ class TrajOpt(BaseModel):
         return (self.E, self.e)
 
     @model_validator(mode="after")
-    def validate_trajopt(self) -> "TrajOpt":
+    def validate_Ocp(self) -> "Ocp":
         """
         Once basic check on certain fields which hold constants and functions
         are complete, additional checks are done to
@@ -356,7 +356,7 @@ class TrajOpt(BaseModel):
 
         Returns
         -------
-        TrajOpt
+        Ocp
             Trajectory optimization object
         """
 
@@ -481,13 +481,13 @@ class TrajOpt(BaseModel):
                 # override nones to +/- inf
                 setattr(self, name, c * cs.DM.inf() * cs.DM.ones(obj_and_shape[1]))
             # match shapes of x and u, detect nan
-            TrajOpt.check_shape(
+            Ocp.check_shape(
                 name=name, vec=getattr(self, name), known_shape=obj_and_shape[1]
             )
-            TrajOpt.check_nan(name=name, vec=getattr(self, name))
+            Ocp.check_nan(name=name, vec=getattr(self, name))
 
-        TrajOpt.check_lb_le_ub(self.x_lb, self.x_ub, "x")
-        TrajOpt.check_lb_le_ub(self.u_lb, self.u_ub, "u")
+        Ocp.check_lb_le_ub(self.x_lb, self.x_ub, "x")
+        Ocp.check_lb_le_ub(self.u_lb, self.u_ub, "u")
 
         time = {
             "t0_lb": (self.t0_lb, (1, 1)),
@@ -509,19 +509,19 @@ class TrajOpt(BaseModel):
                         setattr(self, name, cs.DM.inf())
                 else:
                     # user defined - check quality of data and its shape
-                    TrajOpt.check_shape(
+                    Ocp.check_shape(
                         name=name, vec=obj_and_shape[0], known_shape=obj_and_shape[1]
                     )
-                    TrajOpt.check_nan(name=name, vec=obj_and_shape[0])
+                    Ocp.check_nan(name=name, vec=obj_and_shape[0])
             else:
                 # t0/tf are fixed
                 if obj_and_shape[0] is not None:
                     raise ValueError(f"Cannot set bounds to fixed variable {name[:2]}")
 
         if self.t0 is None:
-            TrajOpt.check_lb_le_ub(self.t0_lb, self.t0_ub, "t0")
+            Ocp.check_lb_le_ub(self.t0_lb, self.t0_ub, "t0")
         if self.tf is None:
-            TrajOpt.check_lb_le_ub(self.tf_lb, self.tf_ub, "tf")
+            Ocp.check_lb_le_ub(self.tf_lb, self.tf_ub, "tf")
 
         # fixed t0,tf -> tf>t0
         if self.tf is not None and self.t0 is not None and self.t0 > self.tf:
@@ -540,14 +540,14 @@ class TrajOpt(BaseModel):
                     raise ValueError(
                         f"{name} not set for h. Update {name} with valid bounds vector"
                     )
-                TrajOpt.check_nan(vec=bound, name=name)
-            TrajOpt.check_constraint_shapes(self.h, self.h_lb, self.h_ub, self.h.name())
-            TrajOpt.check_lb_le_ub(self.h_lb, self.h_ub, "h")
+                Ocp.check_nan(vec=bound, name=name)
+            Ocp.check_constraint_shapes(self.h, self.h_lb, self.h_ub, self.h.name())
+            Ocp.check_lb_le_ub(self.h_lb, self.h_ub, "h")
 
-        TrajOpt.check_nan(vec=self.e_lb, name="e_lb")
-        TrajOpt.check_nan(vec=self.e_ub, name="e_ub")
-        TrajOpt.check_constraint_shapes(self.e, self.e_lb, self.e_ub, self.e.name())
-        TrajOpt.check_lb_le_ub(self.e_lb, self.e_ub, "e")
+        Ocp.check_nan(vec=self.e_lb, name="e_lb")
+        Ocp.check_nan(vec=self.e_ub, name="e_ub")
+        Ocp.check_constraint_shapes(self.e, self.e_lb, self.e_ub, self.e.name())
+        Ocp.check_lb_le_ub(self.e_lb, self.e_ub, "e")
 
     def check_scale_offset(self):
 
@@ -560,8 +560,8 @@ class TrajOpt(BaseModel):
         for name, shape in zip(names, shapes):
             if getattr(self, name) is None:
                 setattr(self, name, cs.DM.ones(shape))
-            TrajOpt.check_nan(getattr(self, name), name)
-            TrajOpt.check_shape(getattr(self, name), shape, name)
+            Ocp.check_nan(getattr(self, name), name)
+            Ocp.check_shape(getattr(self, name), shape, name)
 
         names = ["x_o", "u_o"]
         shapes = [(self.nx, 1), (self.nu, 1)]
@@ -569,8 +569,8 @@ class TrajOpt(BaseModel):
         for name, shape in zip(names, shapes):
             if getattr(self, name) is None:
                 setattr(self, name, cs.DM.zeros(shape))
-            TrajOpt.check_nan(getattr(self, name), name)
-            TrajOpt.check_shape(getattr(self, name), shape, name)
+            Ocp.check_nan(getattr(self, name), name)
+            Ocp.check_shape(getattr(self, name), shape, name)
 
         if self.J_s is not None and self.J_s <= 0:
             raise ValueError(
@@ -583,8 +583,8 @@ class TrajOpt(BaseModel):
             for name, default in zip(names, defaults):
                 if getattr(self, name) is None:
                     setattr(self, name, default)
-                TrajOpt.check_nan(getattr(self, name), name)
-                TrajOpt.check_shape(getattr(self, name), (1, 1), name)
+                Ocp.check_nan(getattr(self, name), name)
+                Ocp.check_shape(getattr(self, name), (1, 1), name)
         else:
             if self.t_s is not None or self.t_o is not None:
                 raise ValueError(
@@ -594,8 +594,8 @@ class TrajOpt(BaseModel):
         if self.h is not None:
             if self.h_s is None:
                 self.h_s = cs.DM.ones(self.h.size_out(0))
-            TrajOpt.check_nan(self.h_s, "h_s")
-            TrajOpt.check_shape(self.h_s, self.h.size_out(0), "h_s")
+            Ocp.check_nan(self.h_s, "h_s")
+            Ocp.check_shape(self.h_s, self.h.size_out(0), "h_s")
         else:
             if self.h_s is not None:
                 raise ValueError("Cannot set scales for OCP with no path constraints")
@@ -696,207 +696,181 @@ class TrajOpt(BaseModel):
                 f"{name} is incorrect shape. Expected {known_shape}, got {vec.shape}"
             )
 
-    def generate_NLP(self):
-
-        nlp = cs.Opti()
-
-        n = self.n
-        nx, nu = self.nx, self.nu
-
-        dec_var = []
-
-        if self.t0 is None:
-            t0 = nlp.variable()
-            dec_var.append(t0)
-            nlp.set_linear_scale(t0, self.t_s, self.t_o)
-        else:
-            t0 = self.t0
-
-        if self.tf is None:
-            tf = nlp.variable()
-            dec_var.append(tf)
-            nlp.set_linear_scale(tf, self.t_s, self.t_o)
-        else:
-            tf = self.tf
-
-        t = cs.linspace(t0, tf, n + 1).T
-
-        X = nlp.variable(nx, n + 1)
-        nlp.set_linear_scale(
-            X, cs.repmat(self.x_s, 1, self.n + 1), cs.repmat(self.x_o, 1, self.n + 1)
+def generate_NLP(ocp:Ocp,nlp:cs.Opti):
+    n = ocp.n
+    nx, nu = ocp.nx, ocp.nu
+    dec_var = []
+    if ocp.t0 is None:
+        t0 = nlp.variable()
+        dec_var.append(t0)
+        nlp.set_linear_scale(t0, ocp.t_s, ocp.t_o)
+    else:
+        t0 = ocp.t0
+    if ocp.tf is None:
+        tf = nlp.variable()
+        dec_var.append(tf)
+        nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
+    else:
+        tf = ocp.tf
+    t = cs.linspace(t0, tf, n + 1).T
+    X = nlp.variable(nx, n + 1)
+    nlp.set_linear_scale(
+        X, cs.repmat(ocp.x_s, 1, ocp.n + 1), cs.repmat(ocp.x_o, 1, ocp.n + 1)
+    )
+    dec_var.append(X)
+    U = nlp.variable(nu, n)
+    nlp.set_linear_scale(
+        U, cs.repmat(ocp.u_s, 1, ocp.n), cs.repmat(ocp.u_o, 1, ocp.n)
+    )
+    dec_var.append(U)
+    # decision vector
+    W = cs.vcat([cs.vec(i) for i in dec_var])
+    event_ip = (t[:, 0], t[:, -1], X[:, 0], X[:, -1])
+    # objective
+    if ocp.L is None:
+        L = 0
+    else:
+        L = (
+            (tf - t0)
+            / n
+            * cs.sum2(ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
         )
-
-        dec_var.append(X)
-        U = nlp.variable(nu, n)
-        nlp.set_linear_scale(
-            U, cs.repmat(self.u_s, 1, self.n), cs.repmat(self.u_o, 1, self.n)
+    if ocp.E is None:
+        E = 0
+    else:
+        E = ocp.E(*event_ip)
+    objective = L + E
+    cons = []
+    cons_lb = []
+    cons_ub = []
+    cons_scale = []
+    # event constraints
+    e = ocp.e(*event_ip)
+    cons.append(e)
+    cons_lb.append(ocp.e_lb)
+    cons_ub.append(ocp.e_ub)
+    cons_scale.append(ocp.e_s)
+    # dynamics
+    f = get_discrete_dynamics(ocp,t, X, U)
+    cons.append(f)
+    zr = cs.DM.zeros(f.shape)
+    cons_lb.append(zr)
+    cons_ub.append(zr)
+    cons_scale.append(cs.repmat(ocp.x_s, 1, n))
+    # path constriants
+    if ocp.h is not None:
+        # ZOH to extend control at n+1
+        h = ocp.h.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
+        cons.append(h)
+        cons_lb.append(cs.repmat(ocp.h_lb, 1, n + 1))
+        cons_ub.append(cs.repmat(ocp.h_ub, 1, n + 1))
+        cons_scale.append(cs.repmat(ocp.h_s, 1, n + 1))
+    # constraints
+    G = cs.vcat([cs.vec(i) for i in cons])
+    G_lb = cs.vcat([cs.vec(i) for i in cons_lb])
+    G_ub = cs.vcat([cs.vec(i) for i in cons_ub])
+    G_s = cs.vcat([cs.vec(i) for i in cons_scale])
+    # simple bounds
+    cons_simple_lb = []
+    cons_simple_ub = []
+    cons_simple_scale = []
+    if ocp.t0 is None:
+        t0_lb = ocp.t0_lb
+        t0_ub = ocp.t0_ub
+        cons_simple_lb.append(t0_lb)
+        cons_simple_ub.append(t0_ub)
+        cons_simple_scale.append(ocp.t_s)
+    if ocp.tf is None:
+        tf_lb = ocp.tf_lb
+        tf_ub = ocp.tf_ub
+        cons_simple_lb.append(tf_lb)
+        cons_simple_ub.append(tf_ub)
+        cons_simple_scale.append(ocp.t_s)
+    X_lb = cs.repmat(ocp.x_lb, 1, n + 1)
+    X_ub = cs.repmat(ocp.x_ub, 1, n + 1)
+    cons_simple_lb.append(X_lb)
+    cons_simple_ub.append(X_ub)
+    cons_simple_scale.append(cs.repmat(ocp.x_s, 1, n + 1))
+    U_lb = cs.repmat(ocp.u_lb, 1, n)
+    U_ub = cs.repmat(ocp.u_ub, 1, n)
+    cons_simple_lb.append(U_lb)
+    cons_simple_ub.append(U_ub)
+    cons_simple_scale.append(cs.repmat(ocp.u_s, 1, n))
+    W_lb = cs.vcat([cs.vec(i) for i in cons_simple_lb])
+    W_ub = cs.vcat([cs.vec(i) for i in cons_simple_ub])
+    W_s = cs.vcat([cs.vec(i) for i in cons_simple_scale])
+    # assemble
+    nlp.minimize(objective, float(ocp.J_s))
+    nlp.subject_to(nlp.bounded(G_lb, G, G_ub), G_s)
+    nlp.subject_to(nlp.bounded(W_lb, W, W_ub), W_s)
+    dis_ocp = {}
+    dis_ocp["t"] = t
+    dis_ocp["t0"] = t0
+    dis_ocp["tf"] = tf
+    dis_ocp["X"] = X
+    dis_ocp["U"] = U
+    dis_ocp["dynamics"] = f
+    dis_ocp["objective"] = objective
+    if ocp.method in ["bw_euler", "her_sim", "trap"]:
+        print("Costate estimation not implemented for IRK methods")
+        dis_ocp["costate"] = np.full(
+            shape=get_costate(ocp,nlp.lam_g).shape, fill_value=np.nan
         )
+    else:
+        dis_ocp["costate"] = get_costate(ocp,nlp.lam_g)
+    return dis_ocp
 
-        dec_var.append(U)
+def get_discrete_dynamics(ocp:Ocp, t, X, U) -> cs.MX:
+    F = ocp.f.map(ocp.n, "serial")
+    Xl = X[:, 0:-1]
+    Xr = X[:, 1:]
+    tl = t[:, 0:-1]
+    tr = t[:, 1:]
+    h = t[:, 1] - t[:, 0]
+    dX = Xr - Xl
+    Fl = F(tl, Xl, U)
+    Fr = F(tr, Xr, U)
+    if ocp.method == "bw_euler":
+        defect = dX - Fr * h
+        return defect
+    elif ocp.method == "fw_euler":
+        defect = dX - Fl * h
+        return defect
+    elif ocp.method == "exp_mid":
+        Fm = F(0.5 * (tl + tr), Xl + h / 2 * F(tl, Xl, U), U)
+        defect = dX - h * Fm
+        return defect
+    elif ocp.method == "trap":
+        defect = dX - 0.5 * h * (Fl + Fr)
+        return defect
+    elif ocp.method == "her_sim":
+        Xm = 0.5 * (Xr + Xl) + h / 8 * (Fl - Fr)
+        tm = 0.5 * (tr + tl)
+        Fm = F(tm, Xm, U)
+        defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
+        return defect
+    elif ocp.method == "casadi_integrator":
+        phi = cs.integrator(
+            "phi",
+            ocp.method.plugin,
+            ocp.method._scaled_ode,
+            0,
+            1,
+            ocp.method.plugin_options,
+        )
+        Phi = phi.map(ocp.n, "serial")
+        defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
+        return defect
+    else:
+        raise ValueError("Wrong option for method")
 
-        # decision vector
-        W = cs.vcat([cs.vec(i) for i in dec_var])
-
-        event_ip = (t[:, 0], t[:, -1], X[:, 0], X[:, -1])
-
-        # objective
-        if self.L is None:
-            L = 0
-        else:
-            L = (
-                (tf - t0)
-                / n
-                * cs.sum2(self.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
-            )
-        if self.E is None:
-            E = 0
-        else:
-            E = self.E(*event_ip)
-        objective = L + E
-
-        cons = []
-        cons_lb = []
-        cons_ub = []
-        cons_scale = []
-        # event constraints
-        e = self.e(*event_ip)
-        cons.append(e)
-        cons_lb.append(self.e_lb)
-        cons_ub.append(self.e_ub)
-        cons_scale.append(self.e_s)
-
-        # dynamics
-        f = self.get_discrete_dynamics(t, X, U)
-        cons.append(f)
-        zr = cs.DM.zeros(f.shape)
-        cons_lb.append(zr)
-        cons_ub.append(zr)
-        cons_scale.append(cs.repmat(self.x_s, 1, n))
-
-        # path constriants
-        if self.h is not None:
-            # ZOH to extend control at n+1
-            h = self.h.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
-            cons.append(h)
-            cons_lb.append(cs.repmat(self.h_lb, 1, n + 1))
-            cons_ub.append(cs.repmat(self.h_ub, 1, n + 1))
-            cons_scale.append(cs.repmat(self.h_s, 1, n + 1))
-
-        # constraints
-        G = cs.vcat([cs.vec(i) for i in cons])
-        G_lb = cs.vcat([cs.vec(i) for i in cons_lb])
-        G_ub = cs.vcat([cs.vec(i) for i in cons_ub])
-        G_s = cs.vcat([cs.vec(i) for i in cons_scale])
-
-        # simple bounds
-        cons_simple_lb = []
-        cons_simple_ub = []
-        cons_simple_scale = []
-
-        if self.t0 is None:
-            t0_lb = self.t0_lb
-            t0_ub = self.t0_ub
-            cons_simple_lb.append(t0_lb)
-            cons_simple_ub.append(t0_ub)
-            cons_simple_scale.append(self.t_s)
-
-        if self.tf is None:
-            tf_lb = self.tf_lb
-            tf_ub = self.tf_ub
-            cons_simple_lb.append(tf_lb)
-            cons_simple_ub.append(tf_ub)
-            cons_simple_scale.append(self.t_s)
-
-        X_lb = cs.repmat(self.x_lb, 1, n + 1)
-        X_ub = cs.repmat(self.x_ub, 1, n + 1)
-        cons_simple_lb.append(X_lb)
-        cons_simple_ub.append(X_ub)
-        cons_simple_scale.append(cs.repmat(self.x_s, 1, n + 1))
-        U_lb = cs.repmat(self.u_lb, 1, n)
-        U_ub = cs.repmat(self.u_ub, 1, n)
-        cons_simple_lb.append(U_lb)
-        cons_simple_ub.append(U_ub)
-        cons_simple_scale.append(cs.repmat(self.u_s, 1, n))
-
-        W_lb = cs.vcat([cs.vec(i) for i in cons_simple_lb])
-        W_ub = cs.vcat([cs.vec(i) for i in cons_simple_ub])
-        W_s = cs.vcat([cs.vec(i) for i in cons_simple_scale])
-
-        # assemble
-        nlp.minimize(objective, float(self.J_s))
-        nlp.subject_to(nlp.bounded(G_lb, G, G_ub), G_s)
-        nlp.subject_to(nlp.bounded(W_lb, W, W_ub), W_s)
-
-        trajopt = {}
-        trajopt["nlp"] = nlp
-        trajopt["t"] = t
-        trajopt["t0"] = t0
-        trajopt["tf"] = tf
-        trajopt["X"] = X
-        trajopt["U"] = U
-        trajopt["dynamics"] = f
-        trajopt["objective"] = objective
-        if self.method in ["bw_euler", "her_sim", "trap"]:
-            print("Costate estimation not implemented for IRK methods")
-            trajopt["costate"] = np.full(
-                shape=self.get_costate(nlp.lam_g).shape, fill_value=np.nan
-            )
-        else:
-            trajopt["costate"] = self.get_costate(nlp.lam_g)
-
-        return trajopt
-
-    def get_discrete_dynamics(self, t, X, U) -> cs.MX:
-        F = self.f.map(self.n, "serial")
-        Xl = X[:, 0:-1]
-        Xr = X[:, 1:]
-        tl = t[:, 0:-1]
-        tr = t[:, 1:]
-        h = t[:, 1] - t[:, 0]
-        dX = Xr - Xl
-        Fl = F(tl, Xl, U)
-        Fr = F(tr, Xr, U)
-        if self.method == "bw_euler":
-            defect = dX - Fr * h
-            return defect
-        elif self.method == "fw_euler":
-            defect = dX - Fl * h
-            return defect
-        elif self.method == "exp_mid":
-            Fm = F(0.5 * (tl + tr), Xl + h / 2 * F(tl, Xl, U), U)
-            defect = dX - h * Fm
-            return defect
-        elif self.method == "trap":
-            defect = dX - 0.5 * h * (Fl + Fr)
-            return defect
-        elif self.method == "her_sim":
-            Xm = 0.5 * (Xr + Xl) + h / 8 * (Fl - Fr)
-            tm = 0.5 * (tr + tl)
-            Fm = F(tm, Xm, U)
-            defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
-            return defect
-        elif self.method == "casadi_integrator":
-            phi = cs.integrator(
-                "phi",
-                self.method.plugin,
-                self.method._scaled_ode,
-                0,
-                1,
-                self.method.plugin_options,
-            )
-            Phi = phi.map(self.n, "serial")
-            defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
-            return defect
-        else:
-            raise ValueError("Wrong option for method")
-
-    def get_costate(self, lam_g):
-        nx = self.nx
-        n = self.n
-        ne = self.e.size_out(0)[0]
-        lam_dyn = -lam_g[ne : ne + nx * n, :]
-        costate = cs.reshape(lam_dyn, nx, n)
-        return costate
+def get_costate(ocp:Ocp, lam_g):
+    nx = ocp.nx
+    n = ocp.n
+    ne = ocp.e.size_out(0)[0]
+    lam_dyn = -lam_g[ne : ne + nx * n, :]
+    costate = cs.reshape(lam_dyn, nx, n)
+    return costate
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     # plt.style.use("./pub_qual.mplstyle")
@@ -919,16 +893,16 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
         plt.close()
 
 
-def plot_solution(sol: cs.OptiSol, nlp: dict):
-    tx = sol.value(nlp["t"])
+def plot_solution(sol: cs.OptiSol, dis_ocp: dict,name:str='solution'):
+    tx = sol.value(dis_ocp["t"])
     tu = tx[0:-1]
     tlam = tx[1:]
     tvars = [tx, tu, tlam]
-    X = sol.value(nlp["X"]).reshape(nlp["X"].shape)
-    U = sol.value(nlp["U"]).reshape(nlp["U"].shape)
-    lam = sol.value(nlp["costate"]).reshape(nlp["costate"].shape)
+    X = sol.value(dis_ocp["X"]).reshape(dis_ocp["X"].shape)
+    U = sol.value(dis_ocp["U"]).reshape(dis_ocp["U"].shape)
+    lam = sol.value(dis_ocp["costate"]).reshape(dis_ocp["costate"].shape)
 
-    with PdfPages("solution.pdf") as pdf:
+    with PdfPages(f"{name}.pdf") as pdf:
         for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam], tvars):
             plotting(tvar, var, name, pdf=pdf)
 
@@ -944,13 +918,13 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
     return zoh
 
 
-def check_feasibility(ocp_data:dict,nlp:dict,sol:cs.OptiSol):
+def check_feasibility(ocp:Ocp,dis_ocp:dict,sol:cs.OptiSol,name:str='feasibility'):
 
-    X=sol.value(nlp['X'])
-    U=sol.value(nlp['U'])
-    tg=sol.value(nlp['t'])
+    X=sol.value(dis_ocp['X'])
+    U=sol.value(dis_ocp['U'])
+    tg=sol.value(dis_ocp['t'])
     x0=X[:,0]
-    f=ocp_data['f']
+    f=ocp.f
 
 
     zoh = pc_interp(tg, U)
@@ -960,19 +934,19 @@ def check_feasibility(ocp_data:dict,nlp:dict,sol:cs.OptiSol):
 
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
     options = {"rtol": 1e-12, "atol": 1e-12}
-    sol = solve_ivp(f_solve_ivp, [tg[0],tg[-1]], x0, "LSODA", td, options)
-    if sol.success is False:
+    ivp_sol = solve_ivp(f_solve_ivp, [tg[0],tg[-1]], x0, "LSODA", td, options)
+    if ivp_sol.success is False:
         raise ValueError("Time marching failed")
 
-    with PdfPages("feasibilty.pdf") as pdf:
+    with PdfPages(f"{name}.pdf") as pdf:
         for i in range(x0.size):
             plt.figure()
             if X.ndim==1:
                 plt.plot(tg,X)
-                plt.plot(td,sol.y,label='LSODA')
+                plt.plot(td,ivp_sol.y,label='LSODA')
             else:
                 plt.plot(tg,X[i,:],'o',label='NLP')
-                plt.plot(td,sol.y[i,:],'--',label='LSODA')
+                plt.plot(td,ivp_sol.y[i,:],'--',label='LSODA')
             plt.xlabel('time [s]')
             plt.ylabel(rf'$x_{i}$')
             plt.grid(True)
@@ -990,7 +964,7 @@ def check_feasibility(ocp_data:dict,nlp:dict,sol:cs.OptiSol):
                 plt.plot(tg[0:-1],U,'o',label='NLP')
                 plt.plot(td,Ud,'--',label='ZOH')
             else:
-                plt.plot(tg[0:-1],U[i,:],'o',label='NLP')
+                plt.plot(tg[0:-1],U[i,:],'o',label='dis_ocp')
                 plt.plot(td,Ud[i,:],'--',label='ZOH')
             plt.xlabel('time [s]')
             plt.ylabel(rf'$u_{i}$')

@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from trajopt import casadi_integrator, plot_solution, TrajOpt
+from trajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility
 
 
 def ffrb():
@@ -8,7 +8,7 @@ def ffrb():
     ocp_data = {}
     ocp_data["nx"] = 6
     ocp_data["nu"] = 4
-    ocp_data["n"] = 1000
+    ocp_data["n"] = 200
     ocp_data["t0"] = cs.DM(0)
     ocp_data["tf"] = cs.DM(12)
 
@@ -111,24 +111,26 @@ def ffrb():
     ocp_data["u_lb"] = cs.DM.zeros(ocp_data["nu"], 1)
     ocp_data["u_ub"] = cs.DM.ones(ocp_data["nu"], 1)
 
-    trajopt = TrajOpt(**ocp_data)
+    ocp = Ocp(**ocp_data)
+
+    nlp=cs.Opti()
 
     # Generate the nonlinear program
-    nlp = trajopt.generate_NLP()
+    dis_ocp = generate_NLP(ocp,nlp)
 
     Xg = cs.vcat(
         [
-            cs.linspace(x_initial[i], 0, ocp_data["n"] + 1).T
-            for i in range(ocp_data["nx"])
+            cs.linspace(x_initial[i], 0, ocp.n + 1).T
+            for i in range(ocp.nx)
         ]
     )
     Ug = cs.vcat(
-        [cs.linspace(0.1, 0.9, ocp_data["n"]).T for i in range(ocp_data["nu"])]
+        [cs.linspace(0.1, 0.9, ocp.n).T for i in range(ocp.nu)]
     )
 
-    nlp["nlp"].set_initial(nlp["X"], Xg)
-    nlp["nlp"].set_initial(nlp["U"], Ug)
-    nlp["nlp"].solver(
+    nlp.set_initial(dis_ocp["X"], Xg)
+    nlp.set_initial(dis_ocp["U"], Ug)
+    nlp.solver(
         "ipopt",
         {"detect_simple_bounds": False},
         {
@@ -138,15 +140,12 @@ def ffrb():
         },
     )
 
-    sol = nlp["nlp"].solve()
+    sol = nlp.solve()
 
-    plot_solution(sol, nlp)
+    plot_solution(sol, dis_ocp)
+    check_feasibility(ocp,dis_ocp,sol)
 
 
 if __name__ == "__main__":
-    from time import perf_counter
-
-    t1 = perf_counter()
     ffrb()
-    t2 = perf_counter()
-    print("elapsed time", t2 - t1)
+

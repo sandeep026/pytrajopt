@@ -1,7 +1,7 @@
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from trajopt import TrajOpt, casadi_integrator, plot_solution, check_feasibility
+from trajopt import Ocp, casadi_integrator, plot_solution, check_feasibility, generate_NLP
 
 
 def cart_costate():
@@ -53,20 +53,22 @@ def cart_costate():
     ocp_data["n"] = 50
     ocp_data["method"] = "exp_mid"
 
-    trajopt = TrajOpt(**ocp_data)
+    ocp = Ocp(**ocp_data)
 
-    nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt")
-    nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
-    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    sol = nlp["nlp"].solve()
+    nlp=cs.Opti()
+
+    dis_ocp = generate_NLP(ocp,nlp)
+    nlp.solver("ipopt")
+    nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
+    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
+    sol = nlp.solve()
 
 
     t = np.linspace(0, 2, ocp_data["n"] + 1)[1:]
     out = [
-        sol.value(nlp["costate"])[0, :],
+        sol.value(dis_ocp["costate"])[0, :],
         np.ones(ocp_data["n"] ),
-        sol.value(nlp["costate"])[1, :],
+        sol.value(dis_ocp["costate"])[1, :],
         1 - 0.5 * np.exp(np.linspace(0, 2, ocp_data["n"] )),
     ]
     labels = [
@@ -83,8 +85,8 @@ def cart_costate():
     plt.legend()
     plt.show()
 
-    plot_solution(sol,nlp)
-    check_feasibility(ocp_data,nlp,sol)
+    plot_solution(sol,dis_ocp)
+    check_feasibility(ocp,dis_ocp,sol)
 
 
 if __name__ == "__main__":

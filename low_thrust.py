@@ -1,5 +1,5 @@
 import casadi as cs
-from trajopt import casadi_integrator, plot_solution, TrajOpt, check_feasibility
+from trajopt import casadi_integrator, plot_solution, Ocp, check_feasibility, generate_NLP
 
 
 def low_thrust():
@@ -45,7 +45,6 @@ def low_thrust():
     )
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
-    print(ocp_data['f'].which_depends('i1',['o0']))
 
     method = casadi_integrator(
         plugin="collocation",
@@ -79,28 +78,25 @@ def low_thrust():
     ocp_data['e_s']=cs.DM([4,10,0.1,1]+[4,0.1,1])
     ocp_data['h_s']=None
 
-    trajopt = TrajOpt(**ocp_data)
-
-    nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt")
-
+    ocp = Ocp(**ocp_data)
+    nlp=cs.Opti()
+    dis_ocp = generate_NLP(ocp,nlp)
+    nlp.solver("ipopt")
     Xg = cs.vcat(
         [
-            cs.linspace(1, 4, ocp_data["n"] + 1).T,
-            cs.linspace(0, 0, ocp_data["n"] + 1).T,
-            cs.linspace(0, 0, ocp_data["n"] + 1).T,
-            cs.linspace(1, 0.5, ocp_data["n"] + 1).T,
+            cs.linspace(1, 4,   ocp.n + 1).T,
+            cs.linspace(0, 0,   ocp.n + 1).T,
+            cs.linspace(0, 0,   ocp.n + 1).T,
+            cs.linspace(1, 0.5, ocp.n + 1).T,
         ]
     )
+    nlp.set_initial(dis_ocp["X"], Xg)
+    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
+    nlp.set_initial(dis_ocp["tf"], 46)
+    sol = nlp.solve()
 
-    nlp["nlp"].set_initial(nlp["X"], Xg)
-    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    nlp["nlp"].set_initial(nlp["tf"], 46)
-    sol = nlp["nlp"].solve()
-    plot_solution(sol, nlp) 
-
-
-    check_feasibility(ocp_data,nlp,sol)
+    plot_solution(sol, dis_ocp) 
+    check_feasibility(ocp,dis_ocp,sol)
     
 
 if __name__ == "__main__":

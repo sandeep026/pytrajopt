@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from trajopt import TrajOpt, casadi_integrator, check_feasibility, plot_solution
+from trajopt import Ocp, generate_NLP, casadi_integrator, check_feasibility, plot_solution
 
 
 def crane():
@@ -82,15 +82,15 @@ def crane():
     ocp_data["n"] = 100
     ocp_data["method"] = "her_sim"
 
-    trajopt = TrajOpt(**ocp_data)
-
-    nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt", {"detect_simple_bounds": False})
-    nlp["nlp"].set_initial(nlp["X"], cs.DM.ones(nlp["X"].shape))
-    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    sol = nlp["nlp"].solve()
-    plot_solution(sol, nlp)
-    check_feasibility(ocp_data, nlp, sol)
+    ocp = Ocp(**ocp_data)
+    nlp=cs.Opti()
+    dis_ocp = generate_NLP(ocp,nlp)
+    nlp.solver("ipopt")
+    nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
+    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
+    sol = nlp.solve()
+    plot_solution(sol, dis_ocp)
+    check_feasibility(ocp, dis_ocp, sol)
 
 
 if __name__ == "__main__":

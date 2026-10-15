@@ -1,5 +1,5 @@
 import casadi as cs
-from trajopt import casadi_integrator, plot_solution, TrajOpt, check_feasibility
+from trajopt import casadi_integrator, plot_solution, Ocp, check_feasibility, generate_NLP
 
 
 def rocket():
@@ -71,29 +71,31 @@ def rocket():
 
     ocp_data["n"] = 100
 
-    #ocp_data['J_s']=cs.DM([3e5])
-    #ocp_data['x_s']=cs.DM([1e5,2e3,3e5])
-    #ocp_data['u_s']=cs.DM([1e8])
-    #ocp_data['e_s']=cs.DM([1e5,2e3,3e5]+[1e5])
+    ocp_data['J_s']=cs.DM([3e5])
+    ocp_data['x_s']=cs.DM([1e5,2e3,3e5])
+    ocp_data['u_s']=cs.DM([1e8])
+    ocp_data['e_s']=cs.DM([1e5,2e3,3e5]+[1e5])
 
-    trajopt = TrajOpt(**ocp_data)
+    ocp = Ocp(**ocp_data)
 
-    nlp = trajopt.generate_NLP()
-    nlp["nlp"].solver("ipopt")
+    nlp=cs.Opti()
+
+    dis_ocp = generate_NLP(ocp,nlp)
+    nlp.solver("ipopt")
 
     Xg = cs.vcat(
         [
-            cs.linspace(0, 0*1e5, ocp_data["n"] + 1).T,
-            cs.linspace(0, 0, ocp_data["n"] + 1).T,
-            cs.linspace(1e5, 1e5, ocp_data["n"] + 1).T,
+            cs.linspace(0, 0*1e5, ocp.n + 1).T,
+            cs.linspace(0, 0,     ocp.n + 1).T,
+            cs.linspace(1e5, 1e5, ocp.n + 1).T,
         ]
     )
 
-    nlp["nlp"].set_initial(nlp["X"], Xg)
-    nlp["nlp"].set_initial(nlp["U"], cs.DM.zeros(nlp["U"].shape))
-    sol = nlp["nlp"].solve()
-    plot_solution(sol, nlp)
-    check_feasibility(ocp_data,nlp,sol)
+    nlp.set_initial(dis_ocp["X"], Xg)
+    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
+    sol = nlp.solve()
+    plot_solution(sol, dis_ocp)
+    check_feasibility(ocp,dis_ocp,sol)
 
 if __name__=='__main__':
     rocket()
