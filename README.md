@@ -580,9 +580,9 @@ The framework supports flexible transcription strategies where **each phase can 
 
 Once the nonlinear program is successfully solved, PyTrajOpt provides robust built-in post-processing tools for visualization, costate analysis, and trajectory validation:
 
-* **Visualization (`plot_solution` & `plot_solution_all`):**
+* **Visualization (`plot_solution` & `plot_solution_all_phase`):**
 * `plot_solution`: Generates a comprehensive PDF containing high-quality plots of the optimal states, control inputs, estimated costates, and Hamiltonian for a given phase.
-* `plot_solution_all`: Designed specifically for multiphase problems, this function seamlessly aggregates and plots all sequential phases within a single, unified figure for complete trajectory inspection.
+* `plot_solution_all_phase`: Designed specifically for multiphase problems, this function seamlessly aggregates and plots all sequential phases within a single, unified figure for complete trajectory inspection.
 
 * **Costate Estimation:**
 * For **Direct Multiple Shooting**, state costate estimates are automatically extracted from the KKT multipliers of the solved NLP.
