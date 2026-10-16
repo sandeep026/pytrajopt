@@ -1,7 +1,7 @@
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from trajopt import Ocp, casadi_integrator, plot_solution, check_feasibility, generate_NLP
+from pytrajopt import Ocp, casadi_integrator, plot_solution, check_feasibility, generate_NLP
 
 
 def cart_costate():
@@ -85,8 +85,8 @@ def cart_costate():
     plt.legend()
     plt.show()
 
-    plot_solution(sol,dis_ocp)
-    check_feasibility(ocp,dis_ocp,sol)
+    plot_solution(sol,dis_ocp,'cart_costate_sol')
+    check_feasibility(ocp,dis_ocp,sol,'cart_costate_feas')
 
 
 if __name__ == "__main__":

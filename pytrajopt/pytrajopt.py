@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 import casadi as cs
@@ -15,6 +16,10 @@ from pydantic import (
 )
 from scipy.integrate import solve_ivp
 from scipy.interpolate import make_interp_spline
+
+CURRENT_DIR = Path(__file__).parent
+STYLE_PATH = CURRENT_DIR / "pub_qual.mplstyle"
+plt.style.use(STYLE_PATH)
 
 
 class casadi_integrator(BaseModel):
@@ -696,7 +701,8 @@ class Ocp(BaseModel):
                 f"{name} is incorrect shape. Expected {known_shape}, got {vec.shape}"
             )
 
-def generate_NLP(ocp:Ocp,nlp:cs.Opti):
+
+def generate_NLP(ocp: Ocp, nlp: cs.Opti):
     n = ocp.n
     nx, nu = ocp.nx, ocp.nu
     dec_var = []
@@ -719,9 +725,7 @@ def generate_NLP(ocp:Ocp,nlp:cs.Opti):
     )
     dec_var.append(X)
     U = nlp.variable(nu, n)
-    nlp.set_linear_scale(
-        U, cs.repmat(ocp.u_s, 1, ocp.n), cs.repmat(ocp.u_o, 1, ocp.n)
-    )
+    nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, ocp.n), cs.repmat(ocp.u_o, 1, ocp.n))
     dec_var.append(U)
     # decision vector
     W = cs.vcat([cs.vec(i) for i in dec_var])
@@ -730,11 +734,7 @@ def generate_NLP(ocp:Ocp,nlp:cs.Opti):
     if ocp.L is None:
         L = 0
     else:
-        L = (
-            (tf - t0)
-            / n
-            * cs.sum2(ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
-        )
+        L = (tf - t0) / n * cs.sum2(ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
     if ocp.E is None:
         E = 0
     else:
@@ -751,7 +751,7 @@ def generate_NLP(ocp:Ocp,nlp:cs.Opti):
     cons_ub.append(ocp.e_ub)
     cons_scale.append(ocp.e_s)
     # dynamics
-    f = get_discrete_dynamics(ocp,t, X, U)
+    f = get_discrete_dynamics(ocp, t, X, U)
     cons.append(f)
     zr = cs.DM.zeros(f.shape)
     cons_lb.append(zr)
@@ -814,13 +814,14 @@ def generate_NLP(ocp:Ocp,nlp:cs.Opti):
     if ocp.method in ["bw_euler", "her_sim", "trap"]:
         print("Costate estimation not implemented for IRK methods")
         dis_ocp["costate"] = np.full(
-            shape=get_costate(ocp,nlp.lam_g).shape, fill_value=np.nan
+            shape=get_costate(ocp, nlp.lam_g).shape, fill_value=np.nan
         )
     else:
-        dis_ocp["costate"] = get_costate(ocp,nlp.lam_g)
+        dis_ocp["costate"] = get_costate(ocp, nlp.lam_g)
     return dis_ocp
 
-def get_discrete_dynamics(ocp:Ocp, t, X, U) -> cs.MX:
+
+def get_discrete_dynamics(ocp: Ocp, t, X, U) -> cs.MX:
     F = ocp.f.map(ocp.n, "serial")
     Xl = X[:, 0:-1]
     Xr = X[:, 1:]
@@ -864,7 +865,8 @@ def get_discrete_dynamics(ocp:Ocp, t, X, U) -> cs.MX:
     else:
         raise ValueError("Wrong option for method")
 
-def get_costate(ocp:Ocp, lam_g):
+
+def get_costate(ocp: Ocp, lam_g):
     nx = ocp.nx
     n = ocp.n
     ne = ocp.e.size_out(0)[0]
@@ -872,8 +874,8 @@ def get_costate(ocp:Ocp, lam_g):
     costate = cs.reshape(lam_dyn, nx, n)
     return costate
 
+
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
-    # plt.style.use("./pub_qual.mplstyle")
     for i in range(var.shape[0]):
         plt.figure()
 
@@ -893,7 +895,7 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
         plt.close()
 
 
-def plot_solution(sol: cs.OptiSol, dis_ocp: dict,name:str='solution'):
+def plot_solution(sol: cs.OptiSol, dis_ocp: dict, name: str = "solution"):
     tx = sol.value(dis_ocp["t"])
     tu = tx[0:-1]
     tlam = tx[1:]
@@ -909,7 +911,7 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: dict,name:str='solution'):
 
 def pc_interp(t: np.ndarray, U: np.ndarray):
     if U.ndim == 2:
-        U = np.hstack([U, U[:, -1].reshape(-1,1)])
+        U = np.hstack([U, U[:, -1].reshape(-1, 1)])
         axis = 1
     else:
         U = np.hstack([U, U[-1]])
@@ -918,14 +920,15 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
     return zoh
 
 
-def check_feasibility(ocp:Ocp,dis_ocp:dict,sol:cs.OptiSol,name:str='feasibility'):
+def check_feasibility(
+    ocp: Ocp, dis_ocp: dict, sol: cs.OptiSol, name: str = "feasibility"
+):
 
-    X=sol.value(dis_ocp['X'])
-    U=sol.value(dis_ocp['U'])
-    tg=sol.value(dis_ocp['t'])
-    x0=X[:,0]
-    f=ocp.f
-
+    X = sol.value(dis_ocp["X"])
+    U = sol.value(dis_ocp["U"])
+    tg = sol.value(dis_ocp["t"])
+    x0 = X[:, 0]
+    f = ocp.f
 
     zoh = pc_interp(tg, U)
 
@@ -934,59 +937,60 @@ def check_feasibility(ocp:Ocp,dis_ocp:dict,sol:cs.OptiSol,name:str='feasibility'
 
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
     options = {"rtol": 1e-12, "atol": 1e-12}
-    ivp_sol = solve_ivp(f_solve_ivp, [tg[0],tg[-1]], x0, "LSODA", td, options)
+    ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, "LSODA", td, options)
     if ivp_sol.success is False:
         raise ValueError("Time marching failed")
 
     with PdfPages(f"{name}.pdf") as pdf:
         for i in range(x0.size):
             plt.figure()
-            if X.ndim==1:
-                plt.plot(tg,X)
-                plt.plot(td,ivp_sol.y,label='LSODA')
+            if X.ndim == 1:
+                plt.plot(tg, X)
+                plt.plot(td, ivp_sol.y, label="LSODA")
             else:
-                plt.plot(tg,X[i,:],'o',label='NLP')
-                plt.plot(td,ivp_sol.y[i,:],'--',label='LSODA')
-            plt.xlabel('time [s]')
-            plt.ylabel(rf'$x_{i}$')
+                plt.plot(tg, X[i, :], "o", label="NLP")
+                plt.plot(td, ivp_sol.y[i, :], "--", label="LSODA")
+            plt.xlabel("time [s]")
+            plt.ylabel(rf"$x_{i}$")
             plt.grid(True)
             plt.legend()
             pdf.savefig(bbox_inches="tight")
             plt.close()
 
-        if U.ndim==1:
-            nu=1
+        if U.ndim == 1:
+            nu = 1
         else:
-            nu=U.shape[0]
-        Ud=zoh(td)
+            nu = U.shape[0]
+        Ud = zoh(td)
         for i in range(nu):
-            if U.ndim==1:
-                plt.plot(tg[0:-1],U,'o',label='NLP')
-                plt.plot(td,Ud,'--',label='ZOH')
+            if U.ndim == 1:
+                plt.plot(tg[0:-1], U, "o", label="NLP")
+                plt.plot(td, Ud, "--", label="ZOH")
             else:
-                plt.plot(tg[0:-1],U[i,:],'o',label='dis_ocp')
-                plt.plot(td,Ud[i,:],'--',label='ZOH')
-            plt.xlabel('time [s]')
-            plt.ylabel(rf'$u_{i}$')
+                plt.plot(tg[0:-1], U[i, :], "o", label="dis_ocp")
+                plt.plot(td, Ud[i, :], "--", label="ZOH")
+            plt.xlabel("time [s]")
+            plt.ylabel(rf"$u_{i}$")
             plt.grid(True)
             plt.legend()
             pdf.savefig(bbox_inches="tight")
             plt.close()
 
-def plot_solution_all_phase(dis_ocps:list,sol:cs.OptiSol):
 
-    with PdfPages('all.pdf') as pdf:
+def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol,name:str='all'):
+
+    with PdfPages(f"{name}.pdf") as pdf:
         for j in range(3):
             plt.figure()
             for i, dis_ocp in enumerate(dis_ocps):
-                t=sol.value(dis_ocp["t"]).ravel()
-                X=sol.value(dis_ocp["X"])
-                if X.ndim==1:
-                    plt.plot(t,X,label=f'phase {i}')
+                t = sol.value(dis_ocp["t"]).ravel()
+                X = sol.value(dis_ocp["X"])
+                if X.ndim == 1:
+                    plt.plot(t, X, label=f"phase {i}")
                 else:
-                    plt.plot(t,X[j,:].ravel(),label=f'phase {i}')
-            plt.xlabel('time [s]')
-            plt.ylabel(f'$x_{j}$')
+                    plt.plot(t, X[j, :].ravel(), label=f"phase {i}")
+            plt.xlabel("time [s]")
+            plt.ylabel(f"$x_{j}$")
             plt.grid()
             plt.legend()
             pdf.savefig(bbox_inches="tight")
@@ -995,16 +999,16 @@ def plot_solution_all_phase(dis_ocps:list,sol:cs.OptiSol):
         for j in range(1):
             plt.figure()
             for i, dis_ocp in enumerate(dis_ocps):
-                t=sol.value(dis_ocp["t"])
-                U=sol.value(dis_ocp["U"])
-                zoh=pc_interp(t,U)
-                zoh=zoh(t)
-                if zoh.ndim==1:
-                    plt.plot(t,zoh,label=f'phase {i}')
+                t = sol.value(dis_ocp["t"])
+                U = sol.value(dis_ocp["U"])
+                zoh = pc_interp(t, U)
+                zoh = zoh(t)
+                if zoh.ndim == 1:
+                    plt.plot(t, zoh, label=f"phase {i}")
                 else:
-                    plt.plot(t,zoh[j,:].ravel(),label=f'phase {i}')
-            plt.xlabel('time [s]')
-            plt.ylabel(f'$u_{j}$')
+                    plt.plot(t, zoh[j, :].ravel(), label=f"phase {i}")
+            plt.xlabel("time [s]")
+            plt.ylabel(f"$u_{j}$")
             plt.grid()
             plt.legend()
             pdf.savefig(bbox_inches="tight")

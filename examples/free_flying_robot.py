@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from trajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility
+from pytrajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility
 
 
 def ffrb():
@@ -142,8 +142,8 @@ def ffrb():
 
     sol = nlp.solve()
 
-    plot_solution(sol, dis_ocp)
-    check_feasibility(ocp,dis_ocp,sol)
+    plot_solution(sol, dis_ocp,'free_flying_robot_sol')
+    check_feasibility(ocp,dis_ocp,sol,'free_flying_robot_feas')
 
 
 if __name__ == "__main__":

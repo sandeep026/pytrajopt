@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from trajopt import (
+from pytrajopt import (
     Ocp,
     casadi_integrator,
     check_feasibility,
@@ -168,12 +168,7 @@ def solve_multiphase_ocp():
 
     sol = nlp.solve()
 
-    plot_solution_all_phase(dis_ocps,sol)
-
-
-#    for i, (ocp, dis_ocp) in enumerate(zip(ocps, dis_ocps), start=1):
-#        plot_solution(sol, dis_ocp, name=f"s{i}")
-#        check_feasibility(ocp, dis_ocp, sol, name=f"f{i}")
+    plot_solution_all_phase(dis_ocps,sol,'rocket_multiphase')
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from trajopt import Ocp, generate_NLP, casadi_integrator, check_feasibility, plot_solution
+from pytrajopt import Ocp, generate_NLP, casadi_integrator, check_feasibility, plot_solution
 
 
 def crane():
@@ -89,8 +89,8 @@ def crane():
     nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
     nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
     sol = nlp.solve()
-    plot_solution(sol, dis_ocp)
-    check_feasibility(ocp, dis_ocp, sol)
+    plot_solution(sol, dis_ocp,'container_crane_sol')
+    check_feasibility(ocp, dis_ocp, sol,'container_crane_feas')
 
 
 if __name__ == "__main__":

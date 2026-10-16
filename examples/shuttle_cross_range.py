@@ -1,5 +1,5 @@
 import casadi as cs
-from trajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP
+from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP
 
 def shuttle_max_crossrange():
     ocp_data = {}
@@ -133,8 +133,8 @@ def shuttle_max_crossrange():
     nlp.set_initial(dis_ocp["tf"], 2000.0)
     
     sol = nlp.solve()
-    plot_solution(sol, dis_ocp)
-    check_feasibility(ocp, dis_ocp, sol)
+    plot_solution(sol, dis_ocp,'shuttle_cross_range_sol')
+    check_feasibility(ocp, dis_ocp, sol,'shuttle_cross_range_feas')
 
 if __name__ == "__main__":
     shuttle_max_crossrange()

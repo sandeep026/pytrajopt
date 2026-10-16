@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "pytrajopt"
+version = "0.1.0"
+description = "A minimal python package to solve multiphase and single phase ocps using direct multiple shooting and collocation."
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+casadi = {path = "C:/Users/Sandeep/Downloads/casadi-3.8.1.dev+fenv.thread.map-cp311-abi3-win_amd64.whl"}
+scipy = "^1.18.1"
+pydantic = "^2.14.1"
+matplotlib = "^3.11.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

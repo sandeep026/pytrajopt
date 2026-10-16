@@ -1,5 +1,5 @@
 import casadi as cs
-from trajopt import (
+from pytrajopt import (
     Ocp,
     casadi_integrator,
     check_feasibility,
@@ -93,8 +93,8 @@ def brach():
     nlp.set_initial(dis_ocp["U"], 1e2 * cs.DM.ones(dis_ocp["U"].shape))
     nlp.set_initial(dis_ocp["tf"], 25)
     sol = nlp.solve()
-    plot_solution(sol, dis_ocp)
-    check_feasibility(ocp, dis_ocp, sol)
+    plot_solution(sol, dis_ocp,'brachistochrone_sol')
+    check_feasibility(ocp, dis_ocp, sol,'brachistochrone_feas')
 
 
 if __name__ == "__main__":
