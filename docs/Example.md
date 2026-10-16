@@ -30,8 +30,8 @@ $$(r, v_r, v_t)(t_f) = (4, 0, 0.5)$$
 
 $$-0.01 \le \mathbf{u} \le 0.01$$
 
-*(Primal and dual solutions for this problem can be found in the accompanying [low_thrust_sol.pdf](./examples/low_thrust_sol.pdf) and*
-*results of feasibility checks are provided in [low_thrust_feas.pdf](./examples/low_thrust_feas.pdf)*
+*(Primal and dual solutions for this problem can be found in the accompanying [low_thrust_sol.pdf](https://github.com/sandeep026/pytrajopt/blob/main/examples/low_thrust_sol.pdf) and*
+*results of feasibility checks are provided in [low_thrust_feas.pdf](https://github.com/sandeep026/pytrajopt/blob/main/examples/low_thrust_feas.pdf)*
 
 
 ### Usage Example (`examples/low_thrust.py`)
