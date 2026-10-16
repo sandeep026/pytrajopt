@@ -65,9 +65,7 @@ $$\mathbf{x}^T = \begin{bmatrix} r & \theta & v_r & v_t \end{bmatrix}$$
 
 $$\mathbf{u}^T = \begin{bmatrix} u_r & u_t \end{bmatrix}$$
 
-Minimize 
-
-$J[\mathbf{x}(\cdot), \mathbf{u}(\cdot), t_f] = t_f$
+$$ \text{Minimize}  J[\mathbf{x}(\cdot), \mathbf{u}(\cdot), t_f] = t_f$$
 
 #### System Dynamics:
 
