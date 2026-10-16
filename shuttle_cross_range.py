@@ -117,7 +117,7 @@ def shuttle_max_crossrange():
     nlp=cs.Opti()
 
     dis_ocp = generate_NLP(ocp,nlp)
-    nlp.solver("ipopt")
+    nlp.solver("scpgen",{'qpsol':'proxqp'})
     Xg = cs.vcat(
         [
             cs.linspace(260000.0, 80000.0,              ocp.n + 1).T,
