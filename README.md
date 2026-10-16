@@ -2,208 +2,8 @@
 
 **PyTrajOpt** (Python-based Trajectory Optimization) is a modern Python framework for solving complex optimal control problems (OCPs). Powered by CasADi for high-performance symbolic differentiation and Pydantic for strict runtime configuration validation, PyTrajOpt supports both single-phase and multiphase formulations via multiple shooting and direct collocation. It goes a step further by estimating state costates and performing rigorous feasibility checks to ensure the reliability of your generated solutions.
 
-## 1. Multiphase OCPs
 
-A multiphase optimal control problem consists of $N_{\text{phases}}$ sequential or interconnected phases, indexed by $p \in \{1, \dots, N_{\text{phases}}\}$. The framework solves problems of the general form:
-
-$$\min_{\{x^{(p)}(\cdot), u^{(p)}(\cdot), t_0^{(p)}, t_f^{(p)}\}_{p=1}^{N_{\text{phases}}}} \quad J = \sum_{p=1}^{N_{\text{phases}}} \left( \int_{t_0^{(p)}}^{t_f^{(p)}} L^{(p)}(t, x^{(p)}, u^{(p)})\mathrm{d}t + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \right)$$
-
-Subject to the following dynamics and constraints for each phase $p = 1, \dots, N_{\text{phases}}$:
-
-$$\dot{x}^{(p)}(t) = f^{(p)}(t, x^{(p)}, u^{(p)}), \quad t \in [t_0^{(p)}, t_f^{(p)}]$$
-
-$$e_{lb}^{(p)} \leq e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \leq e_{ub}^{(p)}$$
-
-$$h_{lb}^{(p)} \leq h^{(p)}(t, x^{(p)}, u^{(p)}) \leq h_{ub}^{(p)}$$
-
-$$x_{lb}^{(p)} \leq x^{(p)}(t) \leq x_{ub}^{(p)}, \quad u_{lb}^{(p)} \leq u^{(p)}(t) \leq u_{ub}^{(p)}$$
-
-And across-phase linkage constraints (e.g., state continuity, time coordination, or event conditions):
-
-$$g_{lb} \leq g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}\}_{p=1}^{N_{\text{phases}}}\right) \leq g_{ub}$$
-
-### Variable & Function Definitions (Multiphase)
-
-| Name | Description | Shape |
-| --- | --- | --- |
-| $N_{\text{phases}}$ | Total number of phases | $\mathbb{Z}^+$ |
-| $p$ | Phase index ($p \in \{1, \dots, N_{\text{phases}}\}$) | $\mathbb{Z}^+$ |
-| $t$ | Independent variable (Time) within phase $p$ | $\mathbb{R}$ |
-| $t_0^{(p)}$ | Initial time of phase $p$ | $\mathbb{R}$ |
-| $t_f^{(p)}$ | Final time of phase $p$ | $\mathbb{R}$ |
-| $x^{(p)}(t)$ | State vector in phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
-| $x_0^{(p)}$ | Initial state of phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
-| $x_f^{(p)}$ | Final state of phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
-| $u^{(p)}(t)$ | Control input vector in phase $p$ | $\mathbb{R}^{n_u^{(p)}}$ |
-| $J$ | Total objective function / Cost functional | $\mathbb{R}$ |
-| $L^{(p)}$ | Running cost (Lagrange term) for phase $p$ | $\mathbb{R}$ |
-| $E^{(p)}$ | Terminal cost (Mayer term) for phase $p$ | $\mathbb{R}$ |
-| $f^{(p)}$ | System dynamics function for phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
-| $e^{(p)}$ | Boundary / Endpoint constraint function for phase $p$ | $\mathbb{R}^{n_e^{(p)}}$ |
-| $h^{(p)}$ | Path constraint function for phase $p$ | $\mathbb{R}^{n_h^{(p)}}$ |
-| $g$ | Phase linkage / transition constraint function | $\mathbb{R}^{n_g}$ |
-| $x_{lb}^{(p)}, x_{ub}^{(p)}$ | State lower and upper bounds for phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
-| $u_{lb}^{(p)}, u_{ub}^{(p)}$ | Control lower and upper bounds for phase $p$ | $\mathbb{R}^{n_u^{(p)}}$ |
-| $e_{lb}^{(p)}, e_{ub}^{(p)}$ | Boundary constraint bounds for phase $p$ | $\mathbb{R}^{n_e^{(p)}}$ |
-| $h_{lb}^{(p)}, h_{ub}^{(p)}$ | Path constraint bounds for phase $p$ | $\mathbb{R}^{n_h^{(p)}}$ |
-| $g_{lb}, g_{ub}$ | Linkage constraint bounds | $\mathbb{R}^{n_g}$ |
-
-## 2. Transcription: From Multiphase OCP to NLP
-
-To solve the infinite-dimensional continuous multiphase OCP on a digital computer, the problem is **transcribed** into a finite-dimensional **Nonlinear Program (NLP)** by applying direct collocation or multiple shooting independently across each phase while enforcing phase linkage constraints.
-
-### A. Time Grid Discretization
-
-For each phase $p \in \{1, \dots, N_{\text{phases}}\}$, the continuous time horizon $[t_0^{(p)}, t_f^{(p)}]$ is divided into $n^{(p)}$ intervals of length $\Delta t^{(p)} = \frac{t_f^{(p)} - t_0^{(p)}}{n^{(p)}}$, generating $n^{(p)} + 1$ mesh grid points:
-
-$$t_k^{(p)} = t_0^{(p)} + k \Delta t^{(p)}, \quad k = 0, 1, \dots, n^{(p)}$$
-
-*(Note: For sequential phases, the final time of phase $p$ typically coincides with the initial time of phase $p+1$, i.e., $t_f^{(p)} = t_0^{(p+1)}$.)*
-
-### B. NLP Decision Vector ($W$) Structure
-
-The continuous functions $x^{(p)}(t)$ and $u^{(p)}(t)$ for every phase are parameterized by state values at the grid nodes and control values over intervals. The global NLP decision variable vector $W$ is assembled by concatenating the free time variables, state matrices, and control matrices across all phases:
-
-$$W = \begin{bmatrix} T_{\text{free}}^T & \text{vec}(X^{(1)})^T & \text{vec}(U^{(1)})^T & \dots & \text{vec}(X^{(N_{\text{phases}})})^T & \text{vec}(U^{(N_{\text{phases}})})^T \end{bmatrix}^T$$
-
-* **Time variables ($T_{\text{free}}$):** Includes all free initial, final, or duration times across the phases (e.g., $t_0^{(1)}, t_f^{(1)}, t_f^{(2)}, \dots, t_f^{(N_{\text{phases}})}$). Fixed times are omitted from $W$.
-* **State Matrix ($X^{(p)}$) for phase $p$:** Dimensions $n_x^{(p)} \times (n^{(p)} + 1)$, flattened into a column vector containing all states across all nodes in phase $p$:
-
-$$X^{(p)} = \begin{bmatrix} x_0^{(p)} & x_1^{(p)} & \dots & x_{n^{(p)}}^{(p)} \end{bmatrix}$$
-
-* **Control Matrix ($U^{(p)}$) for phase $p$:** Dimensions $n_u^{(p)} \times n^{(p)}$, flattened into a column vector containing control inputs across all intervals in phase $p$:
-
-$$U^{(p)} = \begin{bmatrix} u_0^{(p)} & u_1^{(p)} & \dots & u_{n^{(p)}-1}^{(p)} \end{bmatrix}$$
-
-### C. Objective Function Discretization
-
-The continuous cost functional is discretized by summing the approximated integrals (Lagrange terms) and terminal costs (Mayer terms) across all phases:
-
-$$J_{\text{NLP}}(W) = \sum_{p=1}^{N_{\text{phases}}} \left( \frac{t_f^{(p)} - t_0^{(p)}}{n^{(p)}} \sum_{k=0}^{n^{(p)}-1} L^{(p)}(t_k^{(p)}, x_k^{(p)}, u_k^{(p)}) + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}) \right)$$
-
-*(Note: Depending on the chosen numerical quadrature rule—such as trapezoidal or Simpson's rule—appropriate quadrature weights replace the uniform interval scaling factor).*
-
-### D. Constraint Vector ($G(W)$) Structure
-
-All constraints across all phases are stacked vertically into a single global vector $G(W)$ bounded by lower and upper limits ($G_{lb} \leq G(W) \leq G_{ub}$):
-
-1. **Phase Boundary / Endpoint Constraints:**
-Evaluated at the start and end of each phase $p$:
-
-$$G_{\text{event}}^{(p)} = e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}), \quad e_{lb}^{(p)} \leq G_{\text{event}}^{(p)} \leq e_{ub}^{(p)}$$
-
-2. **Inter-Phase Linkage Constraints:**
-Enforces boundary, transition, or matching conditions between connected phases (e.g., state continuity $x_f^{(p)} = x_0^{(p+1)}$ or time synchronization):
-
-$$G_{\text{link}} = g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}\}_{p=1}^{N_{\text{phases}}}\right), \quad g_{lb} \leq G_{\text{link}} \leq g_{ub}$$
-
-3. **System Dynamics / Defect Constraints:**
-Enforces physical consistency between nodes using the chosen integration method independently for each phase $p$ (e.g., $x_{k+1}^{(p)} - x_k^{(p)} - \Delta t^{(p)} f^{(p)}(\cdot) = 0$):
-
-$$G_{\text{dyn}}^{(p)} = \text{Defects}^{(p)}(X^{(p)}, U^{(p)}, t^{(p)}) = 0, \quad \forall p \in \{1, \dots, N_{\text{phases}}\}$$
-
-4. **Path Constraints:**
-Evaluated across all grid nodes $k = 0, \dots, n^{(p)}$ for each phase $p$ (using zero-order hold extension for control inputs at the final node):
-
-$$G_{\text{path}}^{(p)} = \begin{bmatrix} h^{(p)}(t_0^{(p)}, x_0^{(p)}, u_0^{(p)}) \\ \vdots \\ h^{(p)}(t_{n^{(p)}}^{(p)}, x_{n^{(p)}}^{(p)}, u_{n^{(p)}-1}^{(p)}) \end{bmatrix}, \quad h_{lb}^{(p)} \leq G_{\text{path}}^{(p)} \leq h_{ub}^{(p)}$$
-
-## 3. Assembled Final Multiphase NLP Formulation
-
-Combining the discretized objective function, stacked multiphase constraints, and decision vector bounds, the fully assembled **Nonlinear Program (NLP)** solved by CasADi and IPOPT takes the following standard mathematical form:
-
-$$\min_{W} \quad J_{\text{NLP}}(W)$$
-
-Subject to the composite constraints:
-
-$$G_{lb} \leq G(W) \leq G_{ub}$$
-
-where the global constraint vector $G(W)$ aggregates the boundary, linkage, dynamics (defects), and path constraints across all phases:
-
-$$G(W) = \begin{bmatrix} e^{(1)}(t_0^{(1)}, t_f^{(1)}, x_0^{(1)}, x_{n^{(1)}}^{(1)}) \\  \vdots \\  e^{(N_{\text{phases}})}(t_0^{(N_{\text{phases}})}, t_f^{(N_{\text{phases}})}, x_0^{(N_{\text{phases}})}, x_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}) \\  g(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}\}_{p=1}^{N_{\text{phases}}}) \\ \text{Defects}^{(1)}(X^{(1)}, U^{(1)}, t^{(1)}) \\  \vdots \\  \text{Defects}^{(N_{\text{phases}})}(X^{(N_{\text{phases}})}, U^{(N_{\text{phases}})}, t^{(N_{\text{phases}})}) \\  h^{(1)}(t_0^{(1)}, x_0^{(1)}, u_0^{(1)}) \\  \vdots \\  h^{(N_{\text{phases}})}(t_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}, x_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}, u_{n^{(N_{\text{phases}})}-1}^{(N_{\text{phases}})}) \end{bmatrix}$$
-
-With corresponding lower and upper constraint bounds:
-
-$$G_{lb} = \begin{bmatrix} e_{lb}^{(1)} \\ \vdots \\ e_{lb}^{(N_{\text{phases}})} \\ g_{lb} \\ \mathbf{0}^{(1)} \\ \vdots \\ \mathbf{0}^{(N_{\text{phases}})} \\ h_{lb}^{(1)} \\ \vdots \\ h_{lb}^{(N_{\text{phases}})} \end{bmatrix}, \quad G_{ub} = \begin{bmatrix} e_{ub}^{(1)} \\ \vdots \\ e_{ub}^{(N_{\text{phases}})} \\ g_{ub} \\ \mathbf{0}^{(1)} \\ \vdots \\ \mathbf{0}^{(N_{\text{phases}})} \\ h_{ub}^{(1)} \\ \vdots \\ h_{ub}^{(N_{\text{phases}})} \end{bmatrix}$$
-
-And subject to simple variable bounds on the global decision vector $W$:
-
-$$W_{lb} \leq W \leq W_{ub}$$
-
-where:
-
-$$W = \begin{bmatrix} T_{\text{free}} \\  \text{vec}(X^{(1)}) \\  \text{vec}(U^{(1)}) \\  \vdots \\  \text{vec}(X^{(N_{\text{phases}})}) \\  \text{vec}(U^{(N_{\text{phases}})}) \end{bmatrix}, \quad W_{lb} = \begin{bmatrix} T_{\text{free}, lb} \\  \text{repmat}(x_{lb}^{(1)}, 1, n^{(1)}+1) \\  \text{repmat}(u_{lb}^{(1)}, 1, n^{(1)}) \\  \vdots \\  \text{repmat}(x_{lb}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}+1) \\  \text{repmat}(u_{lb}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}) \end{bmatrix}, \quad W_{ub} = \begin{bmatrix} T_{\text{free}, ub} \\  \text{repmat}(x_{ub}^{(1)}, 1, n^{(1)}+1) \\  \text{repmat}(u_{ub}^{(1)}, 1, n^{(1)}) \\  \vdots \\  \text{repmat}(x_{ub}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}+1) \\  \text{repmat}(u_{ub}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}) \end{bmatrix}$$
-
-Here is a polished and formatted version of **Section 4**, updated to emphasize that **each phase can independently configure** its own integration or collocation method—a key feature for multiphase problems where dynamics can vary wildly between phases (e.g., using an adaptive ODE solver for a stiff phase and a fast explicit RK4 method for a smooth phase):
-
-## 4. Discretization & Integration Methods
-
-The framework supports flexible transcription strategies where **each phase can independently configure** its own integration and collocation backend, categorized into **Direct Multiple Shooting** and **Direct Collocation**:
-
-* **Direct Multiple Shooting (Explicit & Adaptive Integrators):**
-* `fw_euler`: Forward Euler (explicit 1st-order).
-* `exp_mid`: Explicit Midpoint (2nd-order Runge-Kutta).
-* `rk4`: Standard 4th-order Runge-Kutta (via CasADi integrator).
-* `cvodes`: Adaptive-step ODE/DAE integrator from SUNDIALS (ideal for stiff dynamics).
-* `collocation`: Implicit collocation polynomials via CasADi.
-
-
-* **Direct Collocation (Implicit Methods):**
-* `bw_euler`: Backward Euler (implicit 1st-order, highly stable).
-* `trap`: Trapezoidal collocation (implicit 2nd-order).
-* `her_sim`: Hermite-Simpson collocation (cubic polynomial approximation).
-
-Here is a polished and grammatically corrected version of the **Post-Processing** section, structured to match the tone and flow of your documentation while fully integrating support for multiphase problems and solution verification:
-
-
-### 5. Post-Processing & Solution Verification
-
-Once the nonlinear program is successfully solved, PyTrajOpt provides robust built-in post-processing tools for visualization, costate analysis, and trajectory validation:
-
-* **Visualization (`plot_solution` & `plot_solution_all`):**
-* `plot_solution`: Generates a comprehensive PDF containing high-quality plots of the optimal states, control inputs, estimated costates, and Hamiltonian for a given phase.
-* `plot_solution_all`: Designed specifically for multiphase problems, this function seamlessly aggregates and plots all sequential phases within a single, unified figure for complete trajectory inspection.
-
-* **Costate Estimation:**
-* For **Direct Multiple Shooting**, state costate estimates are automatically extracted from the KKT multipliers of the solved NLP.
-* *Note:* Costate extraction for direct collocation methods is currently unimplemented and will yield empty plots for those specific schemes.
-
-* **Feasibility Check (`check_feasibility`):**
-* To rigorously verify solution accuracy, the `check_feasibility` function integrates the continuous-time system dynamics using the initial conditions and zero-order hold (ZOH) control inputs.
-* It then plots these continuous trajectories alongside the discrete states obtained directly from the NLP solver.
-* **Validation Tip:** Large deviations between the integrated continuous dynamics and the discrete NLP states indicate that the mesh is insufficiently resolved and requires further refinement.
-
-Here is the updated **Section 5: Repository Structure**, accurately reflecting your project's actual layout and directory organization based on your workspace:
-
----
-
-## 5. Repository Structure
-
-The project is structured into a clean modular layout separating the core package, comprehensive examples, test suite, and configuration files:
-
-```text
-pytrajopt/
-├── pytrajopt/              # Core package source code
-│   ├── pytrajopt.py        # Pydantic configuration & CasADi NLP transcription engine[cite: 1]
-│   └── pub_qual.mplstyle   # Publication-quality Matplotlib style sheet[cite: 1]
-├── examples/               # Example optimal control problems & generated PDF solutions[cite: 1]
-│   ├── brachistochrone.py  # Brachistochrone curve problem[cite: 1]
-│   ├── cart_costate.py     # Cart costate estimation example[cite: 1]
-│   ├── container_crane.py  # Container crane maneuver[cite: 1]
-│   ├── free_flying_robot.py# Free-flying space robot trajectory[cite: 1]
-│   ├── low_thrust.py       # Low-thrust orbital transfer[cite: 1]
-│   ├── multiphase_rocket.py# Multiphase rocket staging problem[cite: 1]
-│   ├── rocket.py           # Single-phase rocket launch[cite: 1]
-│   └── shuttle_cross_range.py # Space shuttle cross-range maneuver[cite: 1]
-├── tests/                  # Automated testing suite[cite: 1]
-│   └── test_trajopt.py     # Unit and integration tests[cite: 1]
-├── pyproject.toml          # Poetry dependency and project configuration[cite: 1]
-├── poetry.lock             # Locked dependency versions[cite: 1]
-├── LICENSE                 # Open-source license agreement[cite: 1]
-└── README.md               # Project documentation[cite: 1]
-
-```
-
-## 6. Installation
+## Installation
 
 PyTrajOpt uses [Poetry](https://python-poetry.org/) for robust dependency management and packaging. You can install the framework directly from GitHub or set it up locally for development.
 
@@ -251,11 +51,7 @@ poetry shell
 
 ```
 
-Here is a polished and formatted version of **Section 7**, complete with mathematical formatting and a sample Python code snippet demonstrating how to set up and run an optimal control problem using PyTrajOpt (referencing the low-thrust orbital transfer example found in `examples/low_thrust.py`):
-
----
-
-## 7. Quick Start & Usage Example
+## Quick Start & Usage Example
 
 To demonstrate how to define and solve optimal control problems with PyTrajOpt, consider the classical **Low-Thrust Orbital Transfer** problem.
 
@@ -591,4 +387,202 @@ EXIT: Optimal Solution Found.
    nlp_jac_g  |   1.69 s ( 13.76ms)   1.45 s ( 11.81ms)       123
        total  |   5.32 s (  5.32 s)   5.32 s (  5.32 s)         1
 ```
+
+
+## Repository Structure
+
+The project is structured into a clean modular layout separating the core package, comprehensive examples, test suite, and configuration files:
+
+```text
+pytrajopt/
+├── pytrajopt/              # Core package source code
+│   ├── pytrajopt.py        # Pydantic configuration & CasADi NLP transcription engine
+│   └── pub_qual.mplstyle   # Publication-quality Matplotlib style sheet
+├── examples/               # Example optimal control problems & generated PDF solutions
+│   ├── brachistochrone.py  # Brachistochrone curve problem
+│   ├── cart_costate.py     # Cart costate estimation example
+│   ├── container_crane.py  # Container crane maneuver
+│   ├── free_flying_robot.py# Free-flying space robot trajectory
+│   ├── low_thrust.py       # Low-thrust orbital transfer
+│   ├── multiphase_rocket.py# Multiphase rocket staging problem
+│   ├── rocket.py           # Single-phase rocket launch
+│   └── shuttle_cross_range.py # Space shuttle cross-range maneuver
+├── tests/                  # Automated testing suite
+│   └── test_trajopt.py     # Unit and integration tests
+├── pyproject.toml          # Poetry dependency and project configuration
+├── poetry.lock             # Locked dependency versions
+├── LICENSE                 # Open-source license agreement
+└── README.md               # Project documentation
+
+```
+
+## Mathematical Formulation & Transcription
+
+### Multiphase OCP
+
+A multiphase optimal control problem consists of $N_{\text{phases}}$ sequential or interconnected phases, indexed by $p \in \{1, \dots, N_{\text{phases}}\}$. The framework solves problems of the general form:
+
+$$\min_{\{x^{(p)}(\cdot), u^{(p)}(\cdot), t_0^{(p)}, t_f^{(p)}\}_{p=1}^{N_{\text{phases}}}} \quad J = \sum_{p=1}^{N_{\text{phases}}} \left( \int_{t_0^{(p)}}^{t_f^{(p)}} L^{(p)}(t, x^{(p)}, u^{(p)})\mathrm{d}t + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \right)$$
+
+Subject to the following dynamics and constraints for each phase $p = 1, \dots, N_{\text{phases}}$:
+
+$$\dot{x}^{(p)}(t) = f^{(p)}(t, x^{(p)}, u^{(p)}), \quad t \in [t_0^{(p)}, t_f^{(p)}]$$
+
+$$e_{lb}^{(p)} \leq e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \leq e_{ub}^{(p)}$$
+
+$$h_{lb}^{(p)} \leq h^{(p)}(t, x^{(p)}, u^{(p)}) \leq h_{ub}^{(p)}$$
+
+$$x_{lb}^{(p)} \leq x^{(p)}(t) \leq x_{ub}^{(p)}, \quad u_{lb}^{(p)} \leq u^{(p)}(t) \leq u_{ub}^{(p)}$$
+
+And across-phase linkage constraints (e.g., state continuity, time coordination, or event conditions):
+
+$$g_{lb} \leq g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}\}_{p=1}^{N_{\text{phases}}}\right) \leq g_{ub}$$
+
+### Variable & Function Definitions 
+
+| Name | Description | Shape |
+| --- | --- | --- |
+| $N_{\text{phases}}$ | Total number of phases | $\mathbb{Z}^+$ |
+| $p$ | Phase index ($p \in \{1, \dots, N_{\text{phases}}\}$) | $\mathbb{Z}^+$ |
+| $t$ | Independent variable (Time) within phase $p$ | $\mathbb{R}$ |
+| $t_0^{(p)}$ | Initial time of phase $p$ | $\mathbb{R}$ |
+| $t_f^{(p)}$ | Final time of phase $p$ | $\mathbb{R}$ |
+| $x^{(p)}(t)$ | State vector in phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $x_0^{(p)}$ | Initial state of phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $x_f^{(p)}$ | Final state of phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $u^{(p)}(t)$ | Control input vector in phase $p$ | $\mathbb{R}^{n_u^{(p)}}$ |
+| $J$ | Total objective function / Cost functional | $\mathbb{R}$ |
+| $L^{(p)}$ | Running cost (Lagrange term) for phase $p$ | $\mathbb{R}$ |
+| $E^{(p)}$ | Terminal cost (Mayer term) for phase $p$ | $\mathbb{R}$ |
+| $f^{(p)}$ | System dynamics function for phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $e^{(p)}$ | Boundary / Endpoint constraint function for phase $p$ | $\mathbb{R}^{n_e^{(p)}}$ |
+| $h^{(p)}$ | Path constraint function for phase $p$ | $\mathbb{R}^{n_h^{(p)}}$ |
+| $g$ | Phase linkage / transition constraint function | $\mathbb{R}^{n_g}$ |
+| $x_{lb}^{(p)}, x_{ub}^{(p)}$ | State lower and upper bounds for phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $u_{lb}^{(p)}, u_{ub}^{(p)}$ | Control lower and upper bounds for phase $p$ | $\mathbb{R}^{n_u^{(p)}}$ |
+| $e_{lb}^{(p)}, e_{ub}^{(p)}$ | Boundary constraint bounds for phase $p$ | $\mathbb{R}^{n_e^{(p)}}$ |
+| $h_{lb}^{(p)}, h_{ub}^{(p)}$ | Path constraint bounds for phase $p$ | $\mathbb{R}^{n_h^{(p)}}$ |
+| $g_{lb}, g_{ub}$ | Linkage constraint bounds | $\mathbb{R}^{n_g}$ |
+
+### Transcription: From Multiphase OCP to NLP
+
+To solve the infinite-dimensional continuous multiphase OCP on a digital computer, the problem is **transcribed** into a finite-dimensional **Nonlinear Program (NLP)** by applying direct collocation or multiple shooting independently across each phase while enforcing phase linkage constraints.
+
+#### A. Time Grid Discretization
+
+For each phase $p \in \{1, \dots, N_{\text{phases}}\}$, the continuous time horizon $[t_0^{(p)}, t_f^{(p)}]$ is divided into $n^{(p)}$ intervals of length $\Delta t^{(p)} = \frac{t_f^{(p)} - t_0^{(p)}}{n^{(p)}}$, generating $n^{(p)} + 1$ mesh grid points:
+
+$$t_k^{(p)} = t_0^{(p)} + k \Delta t^{(p)}, \quad k = 0, 1, \dots, n^{(p)}$$
+
+*(Note: For sequential phases, the final time of phase $p$ typically coincides with the initial time of phase $p+1$, i.e., $t_f^{(p)} = t_0^{(p+1)}$.)*
+
+#### B. NLP Decision Vector ($W$) Structure
+
+The continuous functions $x^{(p)}(t)$ and $u^{(p)}(t)$ for every phase are parameterized by state values at the grid nodes and control values over intervals. The global NLP decision variable vector $W$ is assembled by concatenating the free time variables, state matrices, and control matrices across all phases:
+
+$$W = \begin{bmatrix} T_{\text{free}}^T & \text{vec}(X^{(1)})^T & \text{vec}(U^{(1)})^T & \dots & \text{vec}(X^{(N_{\text{phases}})})^T & \text{vec}(U^{(N_{\text{phases}})})^T \end{bmatrix}^T$$
+
+* **Time variables ($T_{\text{free}}$):** Includes all free initial, final, or duration times across the phases (e.g., $t_0^{(1)}, t_f^{(1)}, t_f^{(2)}, \dots, t_f^{(N_{\text{phases}})}$). Fixed times are omitted from $W$.
+* **State Matrix ($X^{(p)}$) for phase $p$:** Dimensions $n_x^{(p)} \times (n^{(p)} + 1)$, flattened into a column vector containing all states across all nodes in phase $p$:
+
+$$X^{(p)} = \begin{bmatrix} x_0^{(p)} & x_1^{(p)} & \dots & x_{n^{(p)}}^{(p)} \end{bmatrix}$$
+
+* **Control Matrix ($U^{(p)}$) for phase $p$:** Dimensions $n_u^{(p)} \times n^{(p)}$, flattened into a column vector containing control inputs across all intervals in phase $p$:
+
+$$U^{(p)} = \begin{bmatrix} u_0^{(p)} & u_1^{(p)} & \dots & u_{n^{(p)}-1}^{(p)} \end{bmatrix}$$
+
+#### C. Objective Function Discretization
+
+The continuous cost functional is discretized by summing the approximated integrals (Lagrange terms) and terminal costs (Mayer terms) across all phases:
+
+$$J_{\text{NLP}}(W) = \sum_{p=1}^{N_{\text{phases}}} \left( \frac{t_f^{(p)} - t_0^{(p)}}{n^{(p)}} \sum_{k=0}^{n^{(p)}-1} L^{(p)}(t_k^{(p)}, x_k^{(p)}, u_k^{(p)}) + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}) \right)$$
+
+*(Note: Depending on the chosen numerical quadrature rule—such as trapezoidal or Simpson's rule—appropriate quadrature weights replace the uniform interval scaling factor).*
+
+#### D. Constraint Vector ($G(W)$) Structure
+
+All constraints across all phases are stacked vertically into a single global vector $G(W)$ bounded by lower and upper limits ($G_{lb} \leq G(W) \leq G_{ub}$):
+
+1. **Phase Boundary / Endpoint Constraints:**
+Evaluated at the start and end of each phase $p$:
+
+$$G_{\text{event}}^{(p)} = e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}), \quad e_{lb}^{(p)} \leq G_{\text{event}}^{(p)} \leq e_{ub}^{(p)}$$
+
+2. **Inter-Phase Linkage Constraints:**
+Enforces boundary, transition, or matching conditions between connected phases (e.g., state continuity $x_f^{(p)} = x_0^{(p+1)}$ or time synchronization):
+
+$$G_{\text{link}} = g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}\}_{p=1}^{N_{\text{phases}}}\right), \quad g_{lb} \leq G_{\text{link}} \leq g_{ub}$$
+
+3. **System Dynamics / Defect Constraints:**
+Enforces physical consistency between nodes using the chosen integration method independently for each phase $p$ (e.g., $x_{k+1}^{(p)} - x_k^{(p)} - \Delta t^{(p)} f^{(p)}(\cdot) = 0$):
+
+$$G_{\text{dyn}}^{(p)} = \text{Defects}^{(p)}(X^{(p)}, U^{(p)}, t^{(p)}) = 0, \quad \forall p \in \{1, \dots, N_{\text{phases}}\}$$
+
+4. **Path Constraints:**
+Evaluated across all grid nodes $k = 0, \dots, n^{(p)}$ for each phase $p$ (using zero-order hold extension for control inputs at the final node):
+
+$$G_{\text{path}}^{(p)} = \begin{bmatrix} h^{(p)}(t_0^{(p)}, x_0^{(p)}, u_0^{(p)}) \\ \vdots \\ h^{(p)}(t_{n^{(p)}}^{(p)}, x_{n^{(p)}}^{(p)}, u_{n^{(p)}-1}^{(p)}) \end{bmatrix}, \quad h_{lb}^{(p)} \leq G_{\text{path}}^{(p)} \leq h_{ub}^{(p)}$$
+
+####  Assembled Final Multiphase NLP Formulation
+
+Combining the discretized objective function, stacked multiphase constraints, and decision vector bounds, the fully assembled **Nonlinear Program (NLP)** solved by CasADi and IPOPT takes the following standard mathematical form:
+
+$$\min_{W} \quad J_{\text{NLP}}(W)$$
+
+Subject to the composite constraints:
+
+$$G_{lb} \leq G(W) \leq G_{ub}$$
+
+where the global constraint vector $G(W)$ aggregates the boundary, linkage, dynamics (defects), and path constraints across all phases:
+
+$$G(W) = \begin{bmatrix} e^{(1)}(t_0^{(1)}, t_f^{(1)}, x_0^{(1)}, x_{n^{(1)}}^{(1)}) \\  \vdots \\  e^{(N_{\text{phases}})}(t_0^{(N_{\text{phases}})}, t_f^{(N_{\text{phases}})}, x_0^{(N_{\text{phases}})}, x_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}) \\  g(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}\}_{p=1}^{N_{\text{phases}}}) \\ \text{Defects}^{(1)}(X^{(1)}, U^{(1)}, t^{(1)}) \\  \vdots \\  \text{Defects}^{(N_{\text{phases}})}(X^{(N_{\text{phases}})}, U^{(N_{\text{phases}})}, t^{(N_{\text{phases}})}) \\  h^{(1)}(t_0^{(1)}, x_0^{(1)}, u_0^{(1)}) \\  \vdots \\  h^{(N_{\text{phases}})}(t_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}, x_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}, u_{n^{(N_{\text{phases}})}-1}^{(N_{\text{phases}})}) \end{bmatrix}$$
+
+With corresponding lower and upper constraint bounds:
+
+$$G_{lb} = \begin{bmatrix} e_{lb}^{(1)} \\ \vdots \\ e_{lb}^{(N_{\text{phases}})} \\ g_{lb} \\ \mathbf{0}^{(1)} \\ \vdots \\ \mathbf{0}^{(N_{\text{phases}})} \\ h_{lb}^{(1)} \\ \vdots \\ h_{lb}^{(N_{\text{phases}})} \end{bmatrix}, \quad G_{ub} = \begin{bmatrix} e_{ub}^{(1)} \\ \vdots \\ e_{ub}^{(N_{\text{phases}})} \\ g_{ub} \\ \mathbf{0}^{(1)} \\ \vdots \\ \mathbf{0}^{(N_{\text{phases}})} \\ h_{ub}^{(1)} \\ \vdots \\ h_{ub}^{(N_{\text{phases}})} \end{bmatrix}$$
+
+And subject to simple variable bounds on the global decision vector $W$:
+
+$$W_{lb} \leq W \leq W_{ub}$$
+
+where:
+
+$$W = \begin{bmatrix} T_{\text{free}} \\  \text{vec}(X^{(1)}) \\  \text{vec}(U^{(1)}) \\  \vdots \\  \text{vec}(X^{(N_{\text{phases}})}) \\  \text{vec}(U^{(N_{\text{phases}})}) \end{bmatrix}, \quad W_{lb} = \begin{bmatrix} T_{\text{free}, lb} \\  \text{repmat}(x_{lb}^{(1)}, 1, n^{(1)}+1) \\  \text{repmat}(u_{lb}^{(1)}, 1, n^{(1)}) \\  \vdots \\  \text{repmat}(x_{lb}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}+1) \\  \text{repmat}(u_{lb}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}) \end{bmatrix}, \quad W_{ub} = \begin{bmatrix} T_{\text{free}, ub} \\  \text{repmat}(x_{ub}^{(1)}, 1, n^{(1)}+1) \\  \text{repmat}(u_{ub}^{(1)}, 1, n^{(1)}) \\  \vdots \\  \text{repmat}(x_{ub}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}+1) \\  \text{repmat}(u_{ub}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}) \end{bmatrix}$$
+
+## Discretization & Integration Methods
+
+The framework supports flexible transcription strategies where **each phase can independently configure** its own integration and collocation backend, categorized into **Direct Multiple Shooting** and **Direct Collocation**:
+
+* **Direct Multiple Shooting (Explicit & Adaptive Integrators):**
+* `fw_euler`: Forward Euler (explicit 1st-order).
+* `exp_mid`: Explicit Midpoint (2nd-order Runge-Kutta).
+* `rk4`: Standard 4th-order Runge-Kutta (via CasADi integrator).
+* `cvodes`: Adaptive-step ODE/DAE integrator from SUNDIALS (ideal for stiff dynamics).
+* `collocation`: Implicit collocation polynomials via CasADi.
+
+
+* **Direct Collocation (Implicit Methods):**
+* `bw_euler`: Backward Euler (implicit 1st-order, highly stable).
+* `trap`: Trapezoidal collocation (implicit 2nd-order).
+* `her_sim`: Hermite-Simpson collocation (cubic polynomial approximation).
+
+
+### Post-Processing & Solution Verification
+
+Once the nonlinear program is successfully solved, PyTrajOpt provides robust built-in post-processing tools for visualization, costate analysis, and trajectory validation:
+
+* **Visualization (`plot_solution` & `plot_solution_all`):**
+* `plot_solution`: Generates a comprehensive PDF containing high-quality plots of the optimal states, control inputs, estimated costates, and Hamiltonian for a given phase.
+* `plot_solution_all`: Designed specifically for multiphase problems, this function seamlessly aggregates and plots all sequential phases within a single, unified figure for complete trajectory inspection.
+
+* **Costate Estimation:**
+* For **Direct Multiple Shooting**, state costate estimates are automatically extracted from the KKT multipliers of the solved NLP.
+* *Note:* Costate extraction for direct collocation methods is currently unimplemented and will yield empty plots for those specific schemes.
+
+* **Feasibility Check (`check_feasibility`):**
+* To rigorously verify solution accuracy, the `check_feasibility` function integrates the continuous-time system dynamics using the initial conditions and zero-order hold (ZOH) control inputs.
+* It then plots these continuous trajectories alongside the discrete states obtained directly from the NLP solver.
+* **Validation Tip:** Large deviations between the integrated continuous dynamics and the discrete NLP states indicate that the mesh is insufficiently resolved and requires further refinement.
+
+
 
