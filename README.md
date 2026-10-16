@@ -59,10 +59,15 @@ The problem formulation is adapted from Ross et al. (*"Low-thrust, high-accuracy
 
 ### Problem Definition
 
+The state and control vectors for the problem are defined as 
+
 $$\mathbf{x}^T = \begin{bmatrix} r & \theta & v_r & v_t \end{bmatrix}$$
 
-* **Control Vector:** $\mathbf{u}^T = \begin{bmatrix} u_r & u_t \end{bmatrix}$
-* **Cost Functional:** Minimize $J[\mathbf{x}(\cdot), \mathbf{u}(\cdot), t_f] = t_f$
+$$\mathbf{u}^T = \begin{bmatrix} u_r & u_t \end{bmatrix}$$
+
+Minimize 
+
+$J[\mathbf{x}(\cdot), \mathbf{u}(\cdot), t_f] = t_f$
 
 #### System Dynamics:
 
