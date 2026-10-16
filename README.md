@@ -1,53 +1,58 @@
 # PyTrajOpt
 
-A lightweight, robust, and strongly typed **Python based Trajectory Optimization (PyTrajOpt)** framework built in Python using **CasADi** for symbolic automatic differentiation and **Pydantic** for runtime configuration validation.
+**PyTrajOpt** (Python-based Trajectory Optimization) is a modern Python framework for solving complex optimal control problems (OCPs). Powered by CasADi for high-performance symbolic differentiation and Pydantic for strict runtime configuration validation, PyTrajOpt supports both single-phase and multiphase formulations via multiple shooting and direct collocation. It goes a step further by estimating state costates and performing rigorous feasibility checks to ensure the reliability of your generated solutions.
 
 ---
 
-## Overview
-
-Solving single phase Optimal Control Problems (OCPs) often requires writing boilerplate code to handle constraint dimension checks, bound mapping, and integrator setup. This repository provides a single-file core framework (`trajopt.py`) that abstracts these complexities while enforcing strict shape validation, automatic scaling, and clear separation between path and event constraints.
+Here is the extended formulation for **Multiphase Optimal Control Problems (OCPs)**, seamlessly expanded from your original template to support multiple sequential or interconnected phases, complete with phase linkage constraints and updated variable definitions.
 
 ---
 
-## 1. Theoretical Formulation (OCP)
+## 1. Multiphase OCPs
 
-The framework is designed to solve continuous-time Optimal Control Problems of the general form:
+A multiphase optimal control problem consists of $N_{\text{phases}}$ sequential or interconnected phases, indexed by $p \in \{1, \dots, N_{\text{phases}}\}$. The framework solves problems of the general form:
 
-$$\min_{x(\cdot), u(\cdot), t_0, t_f} \quad J(x,u) = \int_{t_0}^{t_f} L(t,x,u)\mathrm{d}t + E(t_0,t_f,x_0,x_f)$$
+$$\min_{\{x^{(p)}(\cdot), u^{(p)}(\cdot), t_0^{(p)}, t_f^{(p)}\}_{p=1}^{N_{\text{phases}}}} \quad J = \sum_{p=1}^{N_{\text{phases}}} \left( \int_{t_0^{(p)}}^{t_f^{(p)}} L^{(p)}(t, x^{(p)}, u^{(p)})\mathrm{d}t + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \right)$$
 
-Subject to the following system dynamics and constraints:
+Subject to the following dynamics and constraints for each phase $p = 1, \dots, N_{\text{phases}}$:
 
-$$\dot{x}(t) = f(t,x,u), \quad t \in [t_0, t_f]$$
+$$\dot{x}^{(p)}(t) = f^{(p)}(t, x^{(p)}, u^{(p)}), \quad t \in [t_0^{(p)}, t_f^{(p)}]$$
 
-$$e_{lb} \leq e(t_0, t_f, x_0, x_f) \leq e_{ub}$$
+$$e_{lb}^{(p)} \leq e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \leq e_{ub}^{(p)}$$
 
-$$h_{lb} \leq h(t,x,u) \leq h_{ub}$$
+$$h_{lb}^{(p)} \leq h^{(p)}(t, x^{(p)}, u^{(p)}) \leq h_{ub}^{(p)}$$
 
-$$x_{lb} \leq x(t) \leq x_{ub}, \quad u_{lb} \leq u(t) \leq u_{ub}$$
+$$x_{lb}^{(p)} \leq x^{(p)}(t) \leq x_{ub}^{(p)}, \quad u_{lb}^{(p)} \leq u^{(p)}(t) \leq u_{ub}^{(p)}$$
 
-### Variable & Function Definitions
+And across-phase linkage constraints (e.g., state continuity, time coordination, or event conditions):
+
+$$g_{lb} \leq g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}\}_{p=1}^{N_{\text{phases}}}\right) \leq g_{ub}$$
+
+### Variable & Function Definitions (Multiphase)
 
 | Name | Description | Shape |
 | --- | --- | --- |
-| $t$ | Independent variable (Time) | $R$ |
-| $t_0$ | Initial time | $R$ |
-| $t_f$ | Final time | $R$ |
-| $x(t)$ | State vector | $R^{n_x}$ |
-| $x_0$ | Initial state | $R^{n_x}$ |
-| $x_f$ | Final state | $R^{n_x}$ |
-| $u(t)$ | Control input vector | $R^{n_u}$ |
-| $J(x, u)$ | Objective function / Cost functional | $R$ |
-| $L(t, x, u)$ | Running cost (Lagrange term) | $R$ |
-| $E(t_0, t_f, x_0, x_f)$ | Terminal cost (Mayer term) | $R$ |
-| $f(t, x, u)$ | System dynamics function | $R^{n_x}$ |
-| $e(t_0, t_f, x_0, x_f)$ | Boundary / Endpoint constraint function | $R^{n_e}$ |
-| $h(t, x, u)$ | Path constraint function | $R^{n_h}$ |
-| $x_{lb}, x_{ub}$ | State lower and upper bounds | $R^{n_x}$ |
-| $u_{lb}, u_{ub}$ | Control lower and upper bounds | $R^{n_u}$ |
-| $e_{lb}, e_{ub}$ | Boundary constraint bounds | $R^{n_e}$ |
-| $h_{lb}, h_{ub}$ | Path constraint bounds | $R^{n_h}$ |
-
+| $N_{\text{phases}}$ | Total number of phases | $\mathbb{Z}^+$ |
+| $p$ | Phase index ($p \in \{1, \dots, N_{\text{phases}}\}$) | $\mathbb{Z}^+$ |
+| $t$ | Independent variable (Time) within phase $p$ | $\mathbb{R}$ |
+| $t_0^{(p)}$ | Initial time of phase $p$ | $\mathbb{R}$ |
+| $t_f^{(p)}$ | Final time of phase $p$ | $\mathbb{R}$ |
+| $x^{(p)}(t)$ | State vector in phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $x_0^{(p)}$ | Initial state of phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $x_f^{(p)}$ | Final state of phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $u^{(p)}(t)$ | Control input vector in phase $p$ | $\mathbb{R}^{n_u^{(p)}}$ |
+| $J$ | Total objective function / Cost functional | $\mathbb{R}$ |
+| $L^{(p)}$ | Running cost (Lagrange term) for phase $p$ | $\mathbb{R}$ |
+| $E^{(p)}$ | Terminal cost (Mayer term) for phase $p$ | $\mathbb{R}$ |
+| $f^{(p)}$ | System dynamics function for phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $e^{(p)}$ | Boundary / Endpoint constraint function for phase $p$ | $\mathbb{R}^{n_e^{(p)}}$ |
+| $h^{(p)}$ | Path constraint function for phase $p$ | $\mathbb{R}^{n_h^{(p)}}$ |
+| $g$ | Phase linkage / transition constraint function | $\mathbb{R}^{n_g}$ |
+| $x_{lb}^{(p)}, x_{ub}^{(p)}$ | State lower and upper bounds for phase $p$ | $\mathbb{R}^{n_x^{(p)}}$ |
+| $u_{lb}^{(p)}, u_{ub}^{(p)}$ | Control lower and upper bounds for phase $p$ | $\mathbb{R}^{n_u^{(p)}}$ |
+| $e_{lb}^{(p)}, e_{ub}^{(p)}$ | Boundary constraint bounds for phase $p$ | $\mathbb{R}^{n_e^{(p)}}$ |
+| $h_{lb}^{(p)}, h_{ub}^{(p)}$ | Path constraint bounds for phase $p$ | $\mathbb{R}^{n_h^{(p)}}$ |
+| $g_{lb}, g_{ub}$ | Linkage constraint bounds | $\mathbb{R}^{n_g}$ |
 ---
 
 ## 2. Transcription: From OCP to NLP
