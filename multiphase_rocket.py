@@ -6,6 +6,7 @@ from trajopt import (
     check_feasibility,
     generate_NLP,
     plot_solution,
+    pc_interp
 )
 
 
@@ -166,9 +167,48 @@ def solve_multiphase_ocp():
 
     sol = nlp.solve()
 
-    for i, (ocp, dis_ocp) in enumerate(zip(ocps, dis_ocps), start=1):
-        plot_solution(sol, dis_ocp, name=f"s{i}")
-        check_feasibility(ocp, dis_ocp, sol, name=f"f{i}")
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    with PdfPages('all.pdf') as pdf:
+        for j in range(3):
+            plt.figure()
+            for i, dis_ocp in enumerate(dis_ocps):
+                t=sol.value(dis_ocp["t"]).ravel()
+                X=sol.value(dis_ocp["X"])
+                if X.ndim==1:
+                    plt.plot(t,X,label=f'phase {i}')
+                else:
+                    plt.plot(t,X[j,:].ravel(),label=f'phase {i}')
+            plt.xlabel('time [s]')
+            plt.ylabel(f'$x_{j}$')
+            plt.grid()
+            plt.legend()
+            pdf.savefig(bbox_inches="tight")
+            plt.close()
+
+        for j in range(1):
+            plt.figure()
+            for i, dis_ocp in enumerate(dis_ocps):
+                t=sol.value(dis_ocp["t"])
+                U=sol.value(dis_ocp["U"])
+                zoh=pc_interp(t,U)
+                zoh=zoh(t)
+                if zoh.ndim==1:
+                    plt.plot(t,zoh,label=f'phase {i}')
+                else:
+                    plt.plot(t,zoh[j,:].ravel(),label=f'phase {i}')
+            plt.xlabel('time [s]')
+            plt.ylabel(f'$u_{j}$')
+            plt.grid()
+            plt.legend()
+            pdf.savefig(bbox_inches="tight")
+            plt.close()
+
+
+#    for i, (ocp, dis_ocp) in enumerate(zip(ocps, dis_ocps), start=1):
+#        plot_solution(sol, dis_ocp, name=f"s{i}")
+#        check_feasibility(ocp, dis_ocp, sol, name=f"f{i}")
 
 
 if __name__ == "__main__":
