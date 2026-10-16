@@ -972,3 +972,40 @@ def check_feasibility(ocp:Ocp,dis_ocp:dict,sol:cs.OptiSol,name:str='feasibility'
             plt.legend()
             pdf.savefig(bbox_inches="tight")
             plt.close()
+
+def plot_solution_all_phase(dis_ocps:list,sol:cs.OptiSol):
+
+    with PdfPages('all.pdf') as pdf:
+        for j in range(3):
+            plt.figure()
+            for i, dis_ocp in enumerate(dis_ocps):
+                t=sol.value(dis_ocp["t"]).ravel()
+                X=sol.value(dis_ocp["X"])
+                if X.ndim==1:
+                    plt.plot(t,X,label=f'phase {i}')
+                else:
+                    plt.plot(t,X[j,:].ravel(),label=f'phase {i}')
+            plt.xlabel('time [s]')
+            plt.ylabel(f'$x_{j}$')
+            plt.grid()
+            plt.legend()
+            pdf.savefig(bbox_inches="tight")
+            plt.close()
+
+        for j in range(1):
+            plt.figure()
+            for i, dis_ocp in enumerate(dis_ocps):
+                t=sol.value(dis_ocp["t"])
+                U=sol.value(dis_ocp["U"])
+                zoh=pc_interp(t,U)
+                zoh=zoh(t)
+                if zoh.ndim==1:
+                    plt.plot(t,zoh,label=f'phase {i}')
+                else:
+                    plt.plot(t,zoh[j,:].ravel(),label=f'phase {i}')
+            plt.xlabel('time [s]')
+            plt.ylabel(f'$u_{j}$')
+            plt.grid()
+            plt.legend()
+            pdf.savefig(bbox_inches="tight")
+            plt.close()
