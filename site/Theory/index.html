@@ -1,0 +1,1163 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A minimal tool to solve multiphase optimal control problems with direct multiple shooting and collocation">
+      
+      
+        <meta name="author" content="R Sandeepkumar">
+      
+      
+        <link rel="canonical" href="https://www.example.com/Theory/">
+      
+      
+      
+        <link rel="prev" href="../Installation/">
+      
+      
+        <link rel="next" href="../autoapi/pytrajopt/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.70">
+    
+    
+      
+        <title>Theory - Pytraopt documentation</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../assets/stylesheets/modern/main.e442bf79.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../assets/stylesheets/modern/palette.b60ce83d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="./.." title="Pytraopt documentation" class="md-header__button md-logo" aria-label="Pytraopt documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pytraopt documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Theory
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun-moon" viewBox="0 0 24 24"><path d="M12 2v2M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715M16 12a4 4 0 0 0-4-4M19 5l-1.256 1.256M20 12h2"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="./.." title="Pytraopt documentation" class="md-nav__button md-logo" aria-label="Pytraopt documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Pytraopt documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="./.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Index
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Example/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Example
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Theory
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Theory
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mathematical-formulation-transcription" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Mathematical Formulation &amp; Transcription
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mathematical Formulation &amp; Transcription">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multiphase-ocp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Multiphase OCP
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variable-function-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Variable &amp; Function Definitions
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transcription-from-multiphase-ocp-to-nlp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Transcription: From Multiphase OCP to NLP
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transcription: From Multiphase OCP to NLP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-time-grid-discretization" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A. Time Grid Discretization
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-nlp-decision-vector-w-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        B. NLP Decision Vector (<span class="arithmatex">\(W\)</span>) Structure
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-objective-function-discretization" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        C. Objective Function Discretization
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d-constraint-vector-gw-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        D. Constraint Vector (<span class="arithmatex">\(G(W)\)</span>) Structure
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assembled-final-multiphase-nlp-formulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Assembled Final Multiphase NLP Formulation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discretization-integration-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Discretization &amp; Integration Methods
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  API Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5_1" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../autoapi/pytrajopt/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  pytrajopt
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5_1" id="__nav_5_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_5_1_label" aria-expanded="false">
+            <label class="md-nav__title" for="__nav_5_1">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  pytrajopt
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../autoapi/pytrajopt/pytrajopt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  pytrajopt
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#mathematical-formulation-transcription" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Mathematical Formulation &amp; Transcription
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mathematical Formulation &amp; Transcription">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#multiphase-ocp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Multiphase OCP
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variable-function-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Variable &amp; Function Definitions
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transcription-from-multiphase-ocp-to-nlp" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Transcription: From Multiphase OCP to NLP
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Transcription: From Multiphase OCP to NLP">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-time-grid-discretization" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A. Time Grid Discretization
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b-nlp-decision-vector-w-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        B. NLP Decision Vector (<span class="arithmatex">\(W\)</span>) Structure
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#c-objective-function-discretization" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        C. Objective Function Discretization
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#d-constraint-vector-gw-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        D. Constraint Vector (<span class="arithmatex">\(G(W)\)</span>) Structure
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assembled-final-multiphase-nlp-formulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Assembled Final Multiphase NLP Formulation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#discretization-integration-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Discretization &amp; Integration Methods
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+  <h1>Theory</h1>
+
+<h2 id="mathematical-formulation-transcription">Mathematical Formulation &amp; Transcription<a class="headerlink" href="#mathematical-formulation-transcription" title="Permanent link">&para;</a></h2>
+<h3 id="multiphase-ocp">Multiphase OCP<a class="headerlink" href="#multiphase-ocp" title="Permanent link">&para;</a></h3>
+<p>A multiphase optimal control problem consists of <span class="arithmatex">\(N_{\text{phases}}\)</span> sequential or interconnected phases, indexed by <span class="arithmatex">\(p \in \{1, \dots, N_{\text{phases}}\}\)</span>. The framework solves problems of the general form:</p>
+<div class="arithmatex">\[\min_{\{x^{(p)}(\cdot), u^{(p)}(\cdot), t_0^{(p)}, t_f^{(p)}\}_{p=1}^{N_{\text{phases}}}} \quad J = \sum_{p=1}^{N_{\text{phases}}} \left( \int_{t_0^{(p)}}^{t_f^{(p)}} L^{(p)}(t, x^{(p)}, u^{(p)})\mathrm{d}t + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \right)\]</div>
+<p>Subject to the following dynamics and constraints for each phase <span class="arithmatex">\(p = 1, \dots, N_{\text{phases}}\)</span>:</p>
+<div class="arithmatex">\[\dot{x}^{(p)}(t) = f^{(p)}(t, x^{(p)}, u^{(p)}), \quad t \in [t_0^{(p)}, t_f^{(p)}]\]</div>
+<div class="arithmatex">\[e_{lb}^{(p)} \leq e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}) \leq e_{ub}^{(p)}\]</div>
+<div class="arithmatex">\[h_{lb}^{(p)} \leq h^{(p)}(t, x^{(p)}, u^{(p)}) \leq h_{ub}^{(p)}\]</div>
+<div class="arithmatex">\[x_{lb}^{(p)} \leq x^{(p)}(t) \leq x_{ub}^{(p)}, \quad u_{lb}^{(p)} \leq u^{(p)}(t) \leq u_{ub}^{(p)}\]</div>
+<p>And across-phase linkage constraints (e.g., state continuity, time coordination, or event conditions):</p>
+<div class="arithmatex">\[g_{lb} \leq g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_f^{(p)}\}_{p=1}^{N_{\text{phases}}}\right) \leq g_{ub}\]</div>
+<h3 id="variable-function-definitions">Variable &amp; Function Definitions<a class="headerlink" href="#variable-function-definitions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description</th>
+<th>Shape</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(N_{\text{phases}}\)</span></td>
+<td>Total number of phases</td>
+<td><span class="arithmatex">\(\mathbb{Z}^+\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(p\)</span></td>
+<td>Phase index (<span class="arithmatex">\(p \in \{1, \dots, N_{\text{phases}}\}\)</span>)</td>
+<td><span class="arithmatex">\(\mathbb{Z}^+\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t\)</span></td>
+<td>Independent variable (Time) within phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_0^{(p)}\)</span></td>
+<td>Initial time of phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_f^{(p)}\)</span></td>
+<td>Final time of phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(x^{(p)}(t)\)</span></td>
+<td>State vector in phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_x^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(x_0^{(p)}\)</span></td>
+<td>Initial state of phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_x^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(x_f^{(p)}\)</span></td>
+<td>Final state of phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_x^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(u^{(p)}(t)\)</span></td>
+<td>Control input vector in phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_u^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(J\)</span></td>
+<td>Total objective function / Cost functional</td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(L^{(p)}\)</span></td>
+<td>Running cost (Lagrange term) for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(E^{(p)}\)</span></td>
+<td>Terminal cost (Mayer term) for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(f^{(p)}\)</span></td>
+<td>System dynamics function for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_x^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(e^{(p)}\)</span></td>
+<td>Boundary / Endpoint constraint function for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_e^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(h^{(p)}\)</span></td>
+<td>Path constraint function for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_h^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(g\)</span></td>
+<td>Phase linkage / transition constraint function</td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_g}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(x_{lb}^{(p)}, x_{ub}^{(p)}\)</span></td>
+<td>State lower and upper bounds for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_x^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(u_{lb}^{(p)}, u_{ub}^{(p)}\)</span></td>
+<td>Control lower and upper bounds for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_u^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(e_{lb}^{(p)}, e_{ub}^{(p)}\)</span></td>
+<td>Boundary constraint bounds for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_e^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(h_{lb}^{(p)}, h_{ub}^{(p)}\)</span></td>
+<td>Path constraint bounds for phase <span class="arithmatex">\(p\)</span></td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_h^{(p)}}\)</span></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(g_{lb}, g_{ub}\)</span></td>
+<td>Linkage constraint bounds</td>
+<td><span class="arithmatex">\(\mathbb{R}^{n_g}\)</span></td>
+</tr>
+</tbody>
+</table>
+<h3 id="transcription-from-multiphase-ocp-to-nlp">Transcription: From Multiphase OCP to NLP<a class="headerlink" href="#transcription-from-multiphase-ocp-to-nlp" title="Permanent link">&para;</a></h3>
+<p>To solve the infinite-dimensional continuous multiphase OCP on a digital computer, the problem is <strong>transcribed</strong> into a finite-dimensional <strong>Nonlinear Program (NLP)</strong> by applying direct collocation or multiple shooting independently across each phase while enforcing phase linkage constraints.</p>
+<h4 id="a-time-grid-discretization">A. Time Grid Discretization<a class="headerlink" href="#a-time-grid-discretization" title="Permanent link">&para;</a></h4>
+<p>For each phase <span class="arithmatex">\(p \in \{1, \dots, N_{\text{phases}}\}\)</span>, the continuous time horizon <span class="arithmatex">\([t_0^{(p)}, t_f^{(p)}]\)</span> is divided into <span class="arithmatex">\(n^{(p)}\)</span> intervals of length <span class="arithmatex">\(\Delta t^{(p)} = \frac{t_f^{(p)} - t_0^{(p)}}{n^{(p)}}\)</span>, generating <span class="arithmatex">\(n^{(p)} + 1\)</span> mesh grid points:</p>
+<div class="arithmatex">\[t_k^{(p)} = t_0^{(p)} + k \Delta t^{(p)}, \quad k = 0, 1, \dots, n^{(p)}\]</div>
+<p><em>(Note: For sequential phases, the final time of phase <span class="arithmatex">\(p\)</span> typically coincides with the initial time of phase <span class="arithmatex">\(p+1\)</span>, i.e., <span class="arithmatex">\(t_f^{(p)} = t_0^{(p+1)}\)</span>.)</em></p>
+<h4 id="b-nlp-decision-vector-w-structure">B. NLP Decision Vector (<span class="arithmatex">\(W\)</span>) Structure<a class="headerlink" href="#b-nlp-decision-vector-w-structure" title="Permanent link">&para;</a></h4>
+<p>The continuous functions <span class="arithmatex">\(x^{(p)}(t)\)</span> and <span class="arithmatex">\(u^{(p)}(t)\)</span> for every phase are parameterized by state values at the grid nodes and control values over intervals. The global NLP decision variable vector <span class="arithmatex">\(W\)</span> is assembled by concatenating the free time variables, state matrices, and control matrices across all phases:</p>
+<div class="arithmatex">\[W = \begin{bmatrix} T_{\text{free}}^T &amp; \text{vec}(X^{(1)})^T &amp; \text{vec}(U^{(1)})^T &amp; \dots &amp; \text{vec}(X^{(N_{\text{phases}})})^T &amp; \text{vec}(U^{(N_{\text{phases}})})^T \end{bmatrix}^T\]</div>
+<ul>
+<li><strong>Time variables (<span class="arithmatex">\(T_{\text{free}}\)</span>):</strong> Includes all free initial, final, or duration times across the phases (e.g., <span class="arithmatex">\(t_0^{(1)}, t_f^{(1)}, t_f^{(2)}, \dots, t_f^{(N_{\text{phases}})}\)</span>). Fixed times are omitted from <span class="arithmatex">\(W\)</span>.</li>
+<li><strong>State Matrix (<span class="arithmatex">\(X^{(p)}\)</span>) for phase <span class="arithmatex">\(p\)</span>:</strong> Dimensions <span class="arithmatex">\(n_x^{(p)} \times (n^{(p)} + 1)\)</span>, flattened into a column vector containing all states across all nodes in phase <span class="arithmatex">\(p\)</span>:</li>
+</ul>
+<div class="arithmatex">\[X^{(p)} = \begin{bmatrix} x_0^{(p)} &amp; x_1^{(p)} &amp; \dots &amp; x_{n^{(p)}}^{(p)} \end{bmatrix}\]</div>
+<ul>
+<li><strong>Control Matrix (<span class="arithmatex">\(U^{(p)}\)</span>) for phase <span class="arithmatex">\(p\)</span>:</strong> Dimensions <span class="arithmatex">\(n_u^{(p)} \times n^{(p)}\)</span>, flattened into a column vector containing control inputs across all intervals in phase <span class="arithmatex">\(p\)</span>:</li>
+</ul>
+<div class="arithmatex">\[U^{(p)} = \begin{bmatrix} u_0^{(p)} &amp; u_1^{(p)} &amp; \dots &amp; u_{n^{(p)}-1}^{(p)} \end{bmatrix}\]</div>
+<h4 id="c-objective-function-discretization">C. Objective Function Discretization<a class="headerlink" href="#c-objective-function-discretization" title="Permanent link">&para;</a></h4>
+<p>The continuous cost functional is discretized by summing the approximated integrals (Lagrange terms) and terminal costs (Mayer terms) across all phases:</p>
+<div class="arithmatex">\[J_{\text{NLP}}(W) = \sum_{p=1}^{N_{\text{phases}}} \left( \frac{t_f^{(p)} - t_0^{(p)}}{n^{(p)}} \sum_{k=0}^{n^{(p)}-1} L^{(p)}(t_k^{(p)}, x_k^{(p)}, u_k^{(p)}) + E^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}) \right)\]</div>
+<p><em>(Note: Depending on the chosen numerical quadrature rule—such as trapezoidal or Simpson's rule—appropriate quadrature weights replace the uniform interval scaling factor).</em></p>
+<h4 id="d-constraint-vector-gw-structure">D. Constraint Vector (<span class="arithmatex">\(G(W)\)</span>) Structure<a class="headerlink" href="#d-constraint-vector-gw-structure" title="Permanent link">&para;</a></h4>
+<p>All constraints across all phases are stacked vertically into a single global vector <span class="arithmatex">\(G(W)\)</span> bounded by lower and upper limits (<span class="arithmatex">\(G_{lb} \leq G(W) \leq G_{ub}\)</span>):</p>
+<ol>
+<li><strong>Phase Boundary / Endpoint Constraints:</strong>
+Evaluated at the start and end of each phase <span class="arithmatex">\(p\)</span>:</li>
+</ol>
+<div class="arithmatex">\[G_{\text{event}}^{(p)} = e^{(p)}(t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}), \quad e_{lb}^{(p)} \leq G_{\text{event}}^{(p)} \leq e_{ub}^{(p)}\]</div>
+<ol>
+<li><strong>Inter-Phase Linkage Constraints:</strong>
+Enforces boundary, transition, or matching conditions between connected phases (e.g., state continuity <span class="arithmatex">\(x_f^{(p)} = x_0^{(p+1)}\)</span> or time synchronization):</li>
+</ol>
+<div class="arithmatex">\[G_{\text{link}} = g\left(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}\}_{p=1}^{N_{\text{phases}}}\right), \quad g_{lb} \leq G_{\text{link}} \leq g_{ub}\]</div>
+<ol>
+<li><strong>System Dynamics / Defect Constraints:</strong>
+Enforces physical consistency between nodes using the chosen integration method independently for each phase <span class="arithmatex">\(p\)</span> (e.g., <span class="arithmatex">\(x_{k+1}^{(p)} - x_k^{(p)} - \Delta t^{(p)} f^{(p)}(\cdot) = 0\)</span>):</li>
+</ol>
+<div class="arithmatex">\[G_{\text{dyn}}^{(p)} = \text{Defects}^{(p)}(X^{(p)}, U^{(p)}, t^{(p)}) = 0, \quad \forall p \in \{1, \dots, N_{\text{phases}}\}\]</div>
+<ol>
+<li><strong>Path Constraints:</strong>
+Evaluated across all grid nodes <span class="arithmatex">\(k = 0, \dots, n^{(p)}\)</span> for each phase <span class="arithmatex">\(p\)</span> (using zero-order hold extension for control inputs at the final node):</li>
+</ol>
+<div class="arithmatex">\[G_{\text{path}}^{(p)} = \begin{bmatrix} h^{(p)}(t_0^{(p)}, x_0^{(p)}, u_0^{(p)}) \\ \vdots \\ h^{(p)}(t_{n^{(p)}}^{(p)}, x_{n^{(p)}}^{(p)}, u_{n^{(p)}-1}^{(p)}) \end{bmatrix}, \quad h_{lb}^{(p)} \leq G_{\text{path}}^{(p)} \leq h_{ub}^{(p)}\]</div>
+<h4 id="assembled-final-multiphase-nlp-formulation">Assembled Final Multiphase NLP Formulation<a class="headerlink" href="#assembled-final-multiphase-nlp-formulation" title="Permanent link">&para;</a></h4>
+<p>Combining the discretized objective function, stacked multiphase constraints, and decision vector bounds, the fully assembled <strong>Nonlinear Program (NLP)</strong> solved by CasADi and IPOPT takes the following standard mathematical form:</p>
+<div class="arithmatex">\[\min_{W} \quad J_{\text{NLP}}(W)\]</div>
+<p>Subject to the composite constraints:</p>
+<div class="arithmatex">\[G_{lb} \leq G(W) \leq G_{ub}\]</div>
+<p>where the global constraint vector <span class="arithmatex">\(G(W)\)</span> aggregates the boundary, linkage, dynamics (defects), and path constraints across all phases:</p>
+<div class="arithmatex">\[G(W) = \begin{bmatrix} e^{(1)}(t_0^{(1)}, t_f^{(1)}, x_0^{(1)}, x_{n^{(1)}}^{(1)}) \\  \vdots \\  e^{(N_{\text{phases}})}(t_0^{(N_{\text{phases}})}, t_f^{(N_{\text{phases}})}, x_0^{(N_{\text{phases}})}, x_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}) \\  g(\{t_0^{(p)}, t_f^{(p)}, x_0^{(p)}, x_{n^{(p)}}^{(p)}\}_{p=1}^{N_{\text{phases}}}) \\ \text{Defects}^{(1)}(X^{(1)}, U^{(1)}, t^{(1)}) \\  \vdots \\  \text{Defects}^{(N_{\text{phases}})}(X^{(N_{\text{phases}})}, U^{(N_{\text{phases}})}, t^{(N_{\text{phases}})}) \\  h^{(1)}(t_0^{(1)}, x_0^{(1)}, u_0^{(1)}) \\  \vdots \\  h^{(N_{\text{phases}})}(t_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}, x_{n^{(N_{\text{phases}})}}^{(N_{\text{phases}})}, u_{n^{(N_{\text{phases}})}-1}^{(N_{\text{phases}})}) \end{bmatrix}\]</div>
+<p>With corresponding lower and upper constraint bounds:</p>
+<div class="arithmatex">\[G_{lb} = \begin{bmatrix} e_{lb}^{(1)} \\ \vdots \\ e_{lb}^{(N_{\text{phases}})} \\ g_{lb} \\ \mathbf{0}^{(1)} \\ \vdots \\ \mathbf{0}^{(N_{\text{phases}})} \\ h_{lb}^{(1)} \\ \vdots \\ h_{lb}^{(N_{\text{phases}})} \end{bmatrix}, \quad G_{ub} = \begin{bmatrix} e_{ub}^{(1)} \\ \vdots \\ e_{ub}^{(N_{\text{phases}})} \\ g_{ub} \\ \mathbf{0}^{(1)} \\ \vdots \\ \mathbf{0}^{(N_{\text{phases}})} \\ h_{ub}^{(1)} \\ \vdots \\ h_{ub}^{(N_{\text{phases}})} \end{bmatrix}\]</div>
+<p>And subject to simple variable bounds on the global decision vector <span class="arithmatex">\(W\)</span>:</p>
+<div class="arithmatex">\[W_{lb} \leq W \leq W_{ub}\]</div>
+<p>where:</p>
+<div class="arithmatex">\[
+W = \begin{bmatrix} T_{\text{free}} \\  \text{vec}(X^{(1)}) \\  \text{vec}(U^{(1)}) \\  \vdots \\  \text{vec}(X^{(N_{\text{phases}})}) \\  \text{vec}(U^{(N_{\text{phases}})}) \end{bmatrix}, \quad W_{lb} = \begin{bmatrix} T_{\text{free}, lb} \\  \text{repmat}(x_{lb}^{(1)}, 1, n^{(1)}+1) \\  \text{repmat}(u_{lb}^{(1)}, 1, n^{(1)}) \\  \vdots \\  \text{repmat}(x_{lb}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}+1) \\  \text{repmat}(u_{lb}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}) \end{bmatrix}, \quad W_{ub} = \begin{bmatrix} T_{\text{free}, ub} \\  \text{repmat}(x_{ub}^{(1)}, 1, n^{(1)}+1) \\  \text{repmat}(u_{ub}^{(1)}, 1, n^{(1)}) \\  \vdots \\  \text{repmat}(x_{ub}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}+1) \\  \text{repmat}(u_{ub}^{(N_{\text{phases}})}, 1, n^{(N_{\text{phases}})}) \end{bmatrix}
+\]</div>
+<h2 id="discretization-integration-methods">Discretization &amp; Integration Methods<a class="headerlink" href="#discretization-integration-methods" title="Permanent link">&para;</a></h2>
+<p>The framework supports flexible transcription strategies where <strong>each phase can independently configure</strong> its own integration and collocation backend, categorized into <strong>Direct Multiple Shooting</strong> and <strong>Direct Collocation</strong>:</p>
+<ul>
+<li><strong>Direct Multiple Shooting (Explicit &amp; Adaptive Integrators):</strong></li>
+<li><code>fw_euler</code>: Forward Euler (explicit 1<sup>st</sup>-order).</li>
+<li><code>exp_mid</code>: Explicit Midpoint (2<sup>nd</sup>-order Runge-Kutta).</li>
+<li><code>rk4</code>: Standard 4<sup>th</sup>-order Runge-Kutta (via CasADi integrator).</li>
+<li><code>cvodes</code>: Adaptive-step ODE/DAE integrator from SUNDIALS (ideal for stiff dynamics).</li>
+<li>
+<p><code>collocation</code>: Implicit collocation polynomials via CasADi.</p>
+</li>
+<li>
+<p><strong>Direct Collocation (Implicit Methods):</strong></p>
+</li>
+<li><code>bw_euler</code>: Backward Euler (implicit 1<sup>st</sup>-order, highly stable).</li>
+<li><code>trap</code>: Trapezoidal collocation (implicit 2<sup>nd</sup>-order).</li>
+<li><code>her_sim</code>: Hermite-Simpson collocation (cubic polynomial approximation).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../Installation/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Installation">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Installation
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../autoapi/pytrajopt/" class="md-footer__link md-footer__link--next" aria-label="Next: Index">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Index
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 R Sandeepkumar
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"redirect":null,"search":"../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a2388154.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
