@@ -718,7 +718,7 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti):
         nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
     else:
         tf = ocp.tf
-    t = cs.linspace(t0, tf, n + 1).T
+    t = t0 +(tf-t0)*cs.linspace(0, 1, n + 1).T
     X = nlp.variable(nx, n + 1)
     nlp.set_linear_scale(
         X, cs.repmat(ocp.x_s, 1, ocp.n + 1), cs.repmat(ocp.x_o, 1, ocp.n + 1)
