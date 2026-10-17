@@ -6,5 +6,6 @@ from pytrajopt.pytrajopt import (
     pc_interp,
     plot_solution,
     plot_solution_all_phase,
-    disc_opt
+    disc_opt,
+    cubic_spline_interp
 )

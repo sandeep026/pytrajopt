@@ -45,20 +45,21 @@ def brach():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
     disc_data={}
-    disc_data['method'] = casadi_integrator(
-        plugin="collocation",
-        plugin_options={
-            "interpolation_order": 4,
-            "collocation_scheme": "legendre",
-            "rootfinder": "newton",
-            "number_of_finite_elements": 1,
-            "simplify": True,
-        },
-        nx=ocp_data["nx"],
-        nu=ocp_data["nu"],
-        path=[ts, xs, us],
-        f=f,
-    )
+    disc_data['method'] = 'exp_mid'
+    #casadi_integrator(
+    #    plugin="collocation",
+    #    plugin_options={
+    #        "interpolation_order": 4,
+    #        "collocation_scheme": "legendre",
+    #        "rootfinder": "newton",
+    #        "number_of_finite_elements": 1,
+    #        "simplify": True,
+    #    },
+    #    nx=ocp_data["nx"],
+    #    nu=ocp_data["nu"],
+    #    path=[ts, xs, us],
+    #    f=f,
+    #)
     disc_data["n"] = 20
     cgl=-cs.hcat([cs.cos(k*cs.pi/disc_data['n']) for k in range(disc_data['n']+1)])
     #disc_data['grid']=(0.5)*(1+cgl)

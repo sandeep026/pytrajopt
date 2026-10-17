@@ -29,7 +29,7 @@ def solve_multiphase_ocp():
     f = cs.vertcat(v, -mu / (r.T @ r) + us / m, -us / ve)
     f_func = cs.Function("f_shared", [ts, xs, us], [f])
 
-    method = casadi_integrator(plugin="cvodes", nx=3, nu=1, path=[ts, xs, us], f=f)
+    method = 'her_sim'#casadi_integrator(plugin="cvodes", nx=3, nu=1, path=[ts, xs, us], f=f)
 
     discs=[]
     for n in [30,100,30]:

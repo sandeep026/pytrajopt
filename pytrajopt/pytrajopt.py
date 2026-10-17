@@ -746,7 +746,7 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti,disc_opt:disc_opt):
     if ocp.L is None:
         L = 0
     else:
-        L = (tf - t0) / n * cs.sum2(ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
+        L = cs.sum2((t[:,1:]-t[:,0:-1])*ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
     if ocp.E is None:
         E = 0
     else:
@@ -839,12 +839,12 @@ def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> cs.MX:
     Xr = X[:, 1:]
     tl = t[:, 0:-1]
     tr = t[:, 1:]
-    h = t[:, 1] - t[:, 0]
+    h = cs.repmat(t[:, 1:] - t[:, 0:-1],ocp.nx,1)
     dX = Xr - Xl
     Fl = F(tl, Xl, U)
     Fr = F(tr, Xr, U)
     if disc_opt.method == "bw_euler":
-        defect = dX - Fr * h
+        defect = dX - Fr * (h)
         return defect
     elif disc_opt.method == "fw_euler":
         defect = dX - Fl * h
@@ -930,6 +930,14 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
         axis = 0
     zoh = make_interp_spline(t, U, k=0, axis=axis)
     return zoh
+
+def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
+    if X.ndim == 2:
+        axis = 1
+    else:
+        axis = 0
+    cubic = make_interp_spline(t, X, k=3, axis=axis)
+    return cubic
 
 
 def check_feasibility(

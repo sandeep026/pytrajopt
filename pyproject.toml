@@ -12,6 +12,7 @@ casadi = "^3.8.1"
 scipy = "^1.18.1"
 pydantic = "^2.14.1"
 matplotlib = "^3.11.2"
+pywavelets = "^1.10.0"
 
 
 [build-system]
