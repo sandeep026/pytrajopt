@@ -5,6 +5,7 @@ from pytrajopt import (
     check_feasibility,
     generate_NLP,
     plot_solution,
+    disc_opt
 )
 
 
@@ -43,7 +44,8 @@ def brach():
     f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
-    method = casadi_integrator(
+    disc_data={}
+    disc_data['method'] = casadi_integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 4,
@@ -57,15 +59,16 @@ def brach():
         path=[ts, xs, us],
         f=f,
     )
-
-    ocp_data["method"] = method
+    disc_data["n"] = 20
+    cgl=-cs.hcat([cs.cos(k*cs.pi/disc_data['n']) for k in range(disc_data['n']+1)])
+    #disc_data['grid']=(0.5)*(1+cgl)
+    disc=disc_opt(**disc_data)
 
     ocp_data["u_lb"] = None
     ocp_data["u_ub"] = None
     ocp_data["tf_lb"] = None
     ocp_data["tf_ub"] = cs.DM(100)
 
-    ocp_data["n"] = 100
 
     ocp_data["J_s"] = cs.DM([10])
     ocp_data["t_s"] = cs.DM([10])
@@ -78,14 +81,14 @@ def brach():
 
     nlp = cs.Opti()
 
-    dis_ocp = generate_NLP(ocp, nlp)
+    dis_ocp = generate_NLP(ocp, nlp,disc)
     nlp.solver("ipopt")
 
     Xg = cs.vcat(
         [
-            cs.linspace(1, 1e3, ocp.n + 1).T,
-            cs.linspace(1, 1e2, ocp.n + 1).T,
-            cs.linspace(1, 3e2, ocp.n + 1).T,
+            cs.linspace(1, 1e3, disc.n + 1).T,
+            cs.linspace(1, 1e2, disc.n + 1).T,
+            cs.linspace(1, 3e2, disc.n + 1).T,
         ]
     )
 

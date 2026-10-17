@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from pytrajopt import Ocp, generate_NLP, casadi_integrator, check_feasibility, plot_solution
+from pytrajopt import Ocp, generate_NLP, casadi_integrator, check_feasibility, plot_solution,disc_opt
 
 
 def crane():
@@ -79,12 +79,14 @@ def crane():
     ocp_data["u_lb"] = cs.DM([-c1, c2])
     ocp_data["u_ub"] = cs.DM([c1, c3])
 
-    ocp_data["n"] = 100
-    ocp_data["method"] = "her_sim"
+    disc_data={}
+    disc_data["n"] = 100
+    disc_data["method"] = "her_sim"
+    disc=disc_opt(**disc_data)
 
     ocp = Ocp(**ocp_data)
     nlp=cs.Opti()
-    dis_ocp = generate_NLP(ocp,nlp)
+    dis_ocp = generate_NLP(ocp,nlp,disc)
     nlp.solver("ipopt")
     nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
     nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))

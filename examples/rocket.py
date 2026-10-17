@@ -1,5 +1,5 @@
 import casadi as cs
-from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility, generate_NLP
+from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility, generate_NLP,disc_opt
 
 
 def rocket():
@@ -48,8 +48,20 @@ def rocket():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
 
-    method = 'exp_mid'
-    method = casadi_integrator(
+    ocp_data["u_lb"] = cs.DM([0.0])
+    ocp_data['x_lb'] = cs.DM([-cs.DM.inf(),-cs.DM.inf(),0])
+
+
+    ocp_data['J_s']=cs.DM([3e5])
+    ocp_data['x_s']=cs.DM([1e5,2e3,3e5])
+    ocp_data['u_s']=cs.DM([1e8])
+    ocp_data['e_s']=cs.DM([1e5,2e3,3e5]+[1e5])
+
+    ocp = Ocp(**ocp_data)
+
+    disc_data={}
+    disc_data["n"] = 100
+    disc_data['method'] = casadi_integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 3,
@@ -64,30 +76,19 @@ def rocket():
         f=f,
     )
 
-    ocp_data["method"] = method
+    disc=disc_opt(**disc_data)
 
-    ocp_data["u_lb"] = cs.DM([0.0])
-    ocp_data['x_lb'] = cs.DM([-cs.DM.inf(),-cs.DM.inf(),0])
-
-    ocp_data["n"] = 100
-
-    ocp_data['J_s']=cs.DM([3e5])
-    ocp_data['x_s']=cs.DM([1e5,2e3,3e5])
-    ocp_data['u_s']=cs.DM([1e8])
-    ocp_data['e_s']=cs.DM([1e5,2e3,3e5]+[1e5])
-
-    ocp = Ocp(**ocp_data)
 
     nlp=cs.Opti()
 
-    dis_ocp = generate_NLP(ocp,nlp)
+    dis_ocp = generate_NLP(ocp,nlp,disc)
     nlp.solver("ipopt")
 
     Xg = cs.vcat(
         [
-            cs.linspace(0, 0*1e5, ocp.n + 1).T,
-            cs.linspace(0, 0,     ocp.n + 1).T,
-            cs.linspace(1e5, 1e5, ocp.n + 1).T,
+            cs.linspace(0, 0*1e5, disc.n + 1).T,
+            cs.linspace(0, 0,     disc.n + 1).T,
+            cs.linspace(1e5, 1e5, disc.n + 1).T,
         ]
     )
 

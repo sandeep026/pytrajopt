@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from pytrajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility
+from pytrajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility,disc_opt
 
 
 def ffrb():
@@ -8,7 +8,6 @@ def ffrb():
     ocp_data = {}
     ocp_data["nx"] = 6
     ocp_data["nu"] = 4
-    ocp_data["n"] = 200
     ocp_data["t0"] = cs.DM(0)
     ocp_data["tf"] = cs.DM(12)
 
@@ -35,7 +34,9 @@ def ffrb():
         alpha * (us[0] - us[1]) - beta * (us[2] - us[3]),
     )
 
-    ocp_data["method"] = casadi_integrator(
+    disc_data={}
+    disc_data['n']=200
+    disc_data["method"] = casadi_integrator(
         plugin="rk",
         #plugin_options={
         #    "interpolation_order": 3,
@@ -49,6 +50,7 @@ def ffrb():
         path=[ts, xs, us],
         f=f,
     )
+    disc=disc_opt(**disc_data)
 
     ocp_data["f"] = cs.Function(
         "f",
@@ -116,16 +118,16 @@ def ffrb():
     nlp=cs.Opti()
 
     # Generate the nonlinear program
-    dis_ocp = generate_NLP(ocp,nlp)
+    dis_ocp = generate_NLP(ocp,nlp,disc)
 
     Xg = cs.vcat(
         [
-            cs.linspace(x_initial[i], 0, ocp.n + 1).T
+            cs.linspace(x_initial[i], 0, disc.n + 1).T
             for i in range(ocp.nx)
         ]
     )
     Ug = cs.vcat(
-        [cs.linspace(0.1, 0.9, ocp.n).T for i in range(ocp.nu)]
+        [cs.linspace(0.1, 0.9, disc.n).T for i in range(ocp.nu)]
     )
 
     nlp.set_initial(dis_ocp["X"], Xg)

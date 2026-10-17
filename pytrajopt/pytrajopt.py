@@ -183,13 +183,26 @@ dis_methods = (
     Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"] | casadi_integrator
 )
 
+class disc_opt(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    n:PositiveInt
+    method:dis_methods
+    grid:cs.DM|None=None
+
+    @model_validator(mode="after")
+    def check_grid(self) -> "disc_opt":
+        if self.grid is None:
+            self.grid=cs.linspace(0,1,self.n+1).T
+        if self.grid.shape !=(1,self.n+1):
+            raise ValueError(f'Grid shape must be {(1,self.n+1)} but received {self.grid.shape}')
+        return self
+
 
 class Ocp(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     # dimensions of state control and discretization intervals
     nx: PositiveInt
     nu: PositiveInt
-    n: PositiveInt
     # initial and final time
     t0: cs.DM | None = None  # none means free var
     tf: cs.DM | None = None  # none means free var
@@ -200,7 +213,6 @@ class Ocp(BaseModel):
     e: cs.Function
     h: cs.Function | None = None  # optional
     # numerical method for dynamics approximation
-    method: dis_methods
     # path constraint bounds
     h_lb: cs.DM | None = None  # optional
     h_ub: cs.DM | None = None  # optional
@@ -702,8 +714,8 @@ class Ocp(BaseModel):
             )
 
 
-def generate_NLP(ocp: Ocp, nlp: cs.Opti):
-    n = ocp.n
+def generate_NLP(ocp: Ocp, nlp: cs.Opti,disc_opt:disc_opt):
+    n = disc_opt.n
     nx, nu = ocp.nx, ocp.nu
     dec_var = []
     if ocp.t0 is None:
@@ -718,14 +730,14 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti):
         nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
     else:
         tf = ocp.tf
-    t = t0 +(tf-t0)*cs.linspace(0, 1, n + 1).T
+    t = t0 +(tf-t0)*disc_opt.grid
     X = nlp.variable(nx, n + 1)
     nlp.set_linear_scale(
-        X, cs.repmat(ocp.x_s, 1, ocp.n + 1), cs.repmat(ocp.x_o, 1, ocp.n + 1)
+        X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1)
     )
     dec_var.append(X)
     U = nlp.variable(nu, n)
-    nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, ocp.n), cs.repmat(ocp.u_o, 1, ocp.n))
+    nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, n), cs.repmat(ocp.u_o, 1, n))
     dec_var.append(U)
     # decision vector
     W = cs.vcat([cs.vec(i) for i in dec_var])
@@ -751,7 +763,7 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti):
     cons_ub.append(ocp.e_ub)
     cons_scale.append(ocp.e_s)
     # dynamics
-    f = get_discrete_dynamics(ocp, t, X, U)
+    f = get_discrete_dynamics(ocp,disc_opt, t, X, U)
     cons.append(f)
     zr = cs.DM.zeros(f.shape)
     cons_lb.append(zr)
@@ -811,18 +823,18 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti):
     dis_ocp["U"] = U
     dis_ocp["dynamics"] = f
     dis_ocp["objective"] = objective
-    if ocp.method in ["bw_euler", "her_sim", "trap"]:
+    if disc_opt.method in ["bw_euler", "her_sim", "trap"]:
         print("Costate estimation not implemented for IRK methods")
         dis_ocp["costate"] = np.full(
-            shape=get_costate(ocp, nlp.lam_g).shape, fill_value=np.nan
+            shape=get_costate(ocp, disc_opt,nlp.lam_g).shape, fill_value=np.nan
         )
     else:
-        dis_ocp["costate"] = get_costate(ocp, nlp.lam_g)
+        dis_ocp["costate"] = get_costate(ocp, disc_opt,nlp.lam_g)
     return dis_ocp
 
 
-def get_discrete_dynamics(ocp: Ocp, t, X, U) -> cs.MX:
-    F = ocp.f.map(ocp.n, "serial")
+def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> cs.MX:
+    F = ocp.f.map(disc_opt.n, "serial")
     Xl = X[:, 0:-1]
     Xr = X[:, 1:]
     tl = t[:, 0:-1]
@@ -831,44 +843,44 @@ def get_discrete_dynamics(ocp: Ocp, t, X, U) -> cs.MX:
     dX = Xr - Xl
     Fl = F(tl, Xl, U)
     Fr = F(tr, Xr, U)
-    if ocp.method == "bw_euler":
+    if disc_opt.method == "bw_euler":
         defect = dX - Fr * h
         return defect
-    elif ocp.method == "fw_euler":
+    elif disc_opt.method == "fw_euler":
         defect = dX - Fl * h
         return defect
-    elif ocp.method == "exp_mid":
+    elif disc_opt.method == "exp_mid":
         Fm = F(0.5 * (tl + tr), Xl + h / 2 * F(tl, Xl, U), U)
         defect = dX - h * Fm
         return defect
-    elif ocp.method == "trap":
+    elif disc_opt.method == "trap":
         defect = dX - 0.5 * h * (Fl + Fr)
         return defect
-    elif ocp.method == "her_sim":
+    elif disc_opt.method == "her_sim":
         Xm = 0.5 * (Xr + Xl) + h / 8 * (Fl - Fr)
         tm = 0.5 * (tr + tl)
         Fm = F(tm, Xm, U)
         defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
         return defect
-    elif ocp.method == "casadi_integrator":
+    elif disc_opt.method == "casadi_integrator":
         phi = cs.integrator(
             "phi",
-            ocp.method.plugin,
-            ocp.method._scaled_ode,
+            disc_opt.method.plugin,
+            disc_opt.method._scaled_ode,
             0,
             1,
-            ocp.method.plugin_options,
+            disc_opt.method.plugin_options,
         )
-        Phi = phi.map(ocp.n, "serial")
+        Phi = phi.map(disc_opt.n, "serial")
         defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
         return defect
     else:
         raise ValueError("Wrong option for method")
 
 
-def get_costate(ocp: Ocp, lam_g):
+def get_costate(ocp: Ocp,disc_opt:disc_opt, lam_g):
     nx = ocp.nx
-    n = ocp.n
+    n = disc_opt.n
     ne = ocp.e.size_out(0)[0]
     lam_dyn = -lam_g[ne : ne + nx * n, :]
     costate = cs.reshape(lam_dyn, nx, n)

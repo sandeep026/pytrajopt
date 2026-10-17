@@ -1,5 +1,5 @@
 import casadi as cs
-from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP
+from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP, disc_opt
 
 def shuttle_max_crossrange():
     ocp_data = {}
@@ -78,7 +78,9 @@ def shuttle_max_crossrange():
     f = cs.vertcat(dh, d_theta, dv, d_gamma, d_psi)
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
-    method = casadi_integrator(
+    disc_data={}
+    disc_data["n"] = 100
+    disc_data['method'] = casadi_integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 4,
@@ -92,7 +94,7 @@ def shuttle_max_crossrange():
         path=[ts, xs, us],
         f=f,
     )
-    ocp_data["method"] = method
+    disc=disc_opt(**disc_data)
 
     # Control bounds
     ocp_data["u_lb"] = cs.DM([-90.0 * deg2rad, -90.0 * deg2rad])
@@ -102,7 +104,6 @@ def shuttle_max_crossrange():
     ocp_data['tf_lb'] = cs.DM([0.0])
     ocp_data['tf_ub'] = cs.DM([2500.0])
 
-    ocp_data["n"] = 100
 
     # Nominal scaling values
     ocp_data['J_s'] = cs.DM([1.0])
@@ -116,15 +117,15 @@ def shuttle_max_crossrange():
 
     nlp=cs.Opti()
 
-    dis_ocp = generate_NLP(ocp,nlp)
+    dis_ocp = generate_NLP(ocp,nlp,disc)
     nlp.solver("ipopt")
     Xg = cs.vcat(
         [
-            cs.linspace(260000.0, 80000.0,              ocp.n + 1).T,
-            cs.linspace(0.0, 0.5,                       ocp.n + 1).T,
-            cs.linspace(25600.0, 2500.0,                ocp.n + 1).T,
-            cs.linspace(-1.0 * deg2rad, -5.0 * deg2rad, ocp.n + 1).T,
-            cs.linspace(90.0 * deg2rad, 0.0,            ocp.n + 1).T,
+            cs.linspace(260000.0, 80000.0,              disc.n + 1).T,
+            cs.linspace(0.0, 0.5,                       disc.n + 1).T,
+            cs.linspace(25600.0, 2500.0,                disc.n + 1).T,
+            cs.linspace(-1.0 * deg2rad, -5.0 * deg2rad, disc.n + 1).T,
+            cs.linspace(90.0 * deg2rad, 0.0,            disc.n + 1).T,
         ]
     )
 

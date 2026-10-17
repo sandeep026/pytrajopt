@@ -1,7 +1,7 @@
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
-from pytrajopt import Ocp, casadi_integrator, plot_solution, check_feasibility, generate_NLP
+from pytrajopt import Ocp, casadi_integrator, plot_solution, check_feasibility, generate_NLP, disc_opt
 
 
 def cart_costate():
@@ -50,26 +50,28 @@ def cart_costate():
     f = cs.vcat([xs[1], -xs[1] + us])
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
-    ocp_data["n"] = 50
-    ocp_data["method"] = "exp_mid"
+    disc_data={}
+    disc_data["n"] = 50
+    disc_data["method"] = "exp_mid"
+    disc=disc_opt(**disc_data)
 
     ocp = Ocp(**ocp_data)
 
     nlp=cs.Opti()
 
-    dis_ocp = generate_NLP(ocp,nlp)
+    dis_ocp = generate_NLP(ocp,nlp,disc)
     nlp.solver("ipopt")
     nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
     nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
     sol = nlp.solve()
 
 
-    t = np.linspace(0, 2, ocp_data["n"] + 1)[1:]
+    t = np.linspace(0, 2, disc_data["n"] + 1)[1:]
     out = [
         sol.value(dis_ocp["costate"])[0, :],
-        np.ones(ocp_data["n"] ),
+        np.ones(disc_data["n"] ),
         sol.value(dis_ocp["costate"])[1, :],
-        1 - 0.5 * np.exp(np.linspace(0, 2, ocp_data["n"] )),
+        1 - 0.5 * np.exp(np.linspace(0, 2, disc_data["n"] )),
     ]
     labels = [
         r"$\lambda_1$ (num)",

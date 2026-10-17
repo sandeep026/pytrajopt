@@ -7,7 +7,8 @@ from pytrajopt import (
     generate_NLP,
     plot_solution,
     pc_interp,
-    plot_solution_all_phase
+    plot_solution_all_phase,
+    disc_opt
 )
 
 
@@ -30,10 +31,16 @@ def solve_multiphase_ocp():
 
     method = casadi_integrator(plugin="cvodes", nx=3, nu=1, path=[ts, xs, us], f=f)
 
+    discs=[]
+    for n in [30,100,30]:
+        disc_data={}
+        disc_data['n']=n
+        disc_data['method']=method
+        discs.append(disc_opt(**disc_data))
+
     #  Phase Definitions
     phases_data = [
         {
-            "n": 30,
             "t0": cs.DM(0),
             "tf_bounds": (1e-6, 100.0), 
             "u_bounds": (1.167, 1.167),
@@ -48,13 +55,12 @@ def solve_multiphase_ocp():
             "t_guess": (None, 0.08),
             "X_guess": lambda n: cs.vertcat(
                 cs.linspace(1.0, 1.002, n + 1).T,
-                cs.linspace(0.0, 0.02, n + 1).T,
-                cs.linspace(1.0, 0.8, n + 1).T,
+                cs.linspace(0.0, 0.02,  n + 1).T,
+                cs.linspace(1.0, 0.8,   n + 1).T,
             ),
             "U_guess": lambda n: cs.DM.ones(1, n).T * 1.167,
         },
         {
-            "n": 100,
             "t0": None,
             "tf_bounds": (None, None), 
             "u_bounds": (0.0, 0.875),
@@ -66,13 +72,12 @@ def solve_multiphase_ocp():
             "t_guess": (0.08, 0.20),
             "X_guess": lambda n: cs.vertcat(
                 cs.linspace(1.002, 1.01, n + 1).T,
-                cs.linspace(0.02, 0.08, n + 1).T,
-                cs.linspace(0.7, 0.52, n + 1).T,
+                cs.linspace(0.02, 0.08,  n + 1).T,
+                cs.linspace(0.7, 0.52,   n + 1).T,
             ),
             "U_guess": lambda n: cs.DM.ones(1, n).T * 0.5,
         },
         {
-            "n": 30,
             "t0": None,
             "tf_bounds": (None, None),  
             "u_bounds": (0.0, 0.0),
@@ -84,8 +89,8 @@ def solve_multiphase_ocp():
             "t_guess": (0.20, 0.28),
             "X_guess": lambda n: cs.vertcat(
                 cs.linspace(1.01, 1.011, n + 1).T,
-                cs.linspace(0.08, 0.0, n + 1).T,
-                cs.DM.ones(1, n + 1) * 0.5,
+                cs.linspace(0.08, 0.0,   n + 1).T,
+                cs.DM.ones(1,            n + 1) * 0.5,
             ),
             "U_guess": lambda n: cs.DM.zeros(1, n).T,
         },
@@ -96,16 +101,14 @@ def solve_multiphase_ocp():
     nlp = cs.Opti()
 
     for i, data in enumerate(phases_data):
-        n = data["n"]
+        n=discs[i].n
         ocp_config = {
             "nx": 3,
             "nu": 1,
-            "n": n,
             "t0": data["t0"],
             "tf": None,
             "L": None,
             "f": f_func,
-            "method": method,
             "E": cs.Function(f"E{i}", [t0s, tfs, x0s, xfs], [data["E"]]),
             "e": cs.Function(f"e{i}", [t0s, tfs, x0s, xfs], [data["e"]]),
             "e_lb": cs.DM(data["e_bounds"][0]),
@@ -129,7 +132,7 @@ def solve_multiphase_ocp():
         }
 
         ocp = Ocp(**ocp_config)
-        dis_ocp = generate_NLP(ocp, nlp)
+        dis_ocp = generate_NLP(ocp, nlp,discs[i])
 
         dis_ocp["X_guess"] = data["X_guess"](n)
         dis_ocp["U_guess"] = data["U_guess"](n)
