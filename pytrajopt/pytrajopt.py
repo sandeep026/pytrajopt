@@ -714,122 +714,106 @@ class Ocp(BaseModel):
             )
 
 
-def generate_NLP(ocp: Ocp, nlp: cs.Opti,disc_opt:disc_opt):
+def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt):
     n = disc_opt.n
     nx, nu = ocp.nx, ocp.nu
-    dec_var = []
     if ocp.t0 is None:
         t0 = nlp.variable()
-        dec_var.append(t0)
         nlp.set_linear_scale(t0, ocp.t_s, ocp.t_o)
     else:
         t0 = ocp.t0
     if ocp.tf is None:
         tf = nlp.variable()
-        dec_var.append(tf)
         nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
     else:
         tf = ocp.tf
-    t = t0 +(tf-t0)*disc_opt.grid
+    t = t0 + (tf - t0) * disc_opt.grid
     X = nlp.variable(nx, n + 1)
-    nlp.set_linear_scale(
-        X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1)
-    )
-    dec_var.append(X)
+    nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
     U = nlp.variable(nu, n)
     nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, n), cs.repmat(ocp.u_o, 1, n))
-    dec_var.append(U)
-    # decision vector
-    W = cs.vcat([cs.vec(i) for i in dec_var])
     event_ip = (t[:, 0], t[:, -1], X[:, 0], X[:, -1])
     # objective
     if ocp.L is None:
         L = 0
     else:
-        L = cs.sum2((t[:,1:]-t[:,0:-1])*ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U))
+        L = cs.sum2(
+            (t[:, 1:] - t[:, 0:-1]) * ocp.L.map(n, "serial")(t[:, 0:-1], X[:, 0:-1], U)
+        )
     if ocp.E is None:
         E = 0
     else:
         E = ocp.E(*event_ip)
     objective = L + E
-    cons = []
-    cons_lb = []
-    cons_ub = []
-    cons_scale = []
+    nlp.minimize(objective, float(ocp.J_s))
     # event constraints
     e = ocp.e(*event_ip)
-    cons.append(e)
-    cons_lb.append(ocp.e_lb)
-    cons_ub.append(ocp.e_ub)
-    cons_scale.append(ocp.e_s)
+    constraint = {}
+    constraint["e"] = (nlp.bounded(ocp.e_lb, e, ocp.e_ub), ocp.e_s)
+    nlp.subject_to(*constraint["e"])
     # dynamics
-    f = get_discrete_dynamics(ocp,disc_opt, t, X, U)
-    cons.append(f)
+    f = get_discrete_dynamics(ocp, disc_opt, t, X, U)
     zr = cs.DM.zeros(f.shape)
-    cons_lb.append(zr)
-    cons_ub.append(zr)
-    cons_scale.append(cs.repmat(ocp.x_s, 1, n))
+    constraint["f"] = (nlp.bounded(zr, f, zr), cs.repmat(ocp.x_s, 1, n))
+    nlp.subject_to(*constraint["f"])
     # path constriants
     if ocp.h is not None:
         # ZOH to extend control at n+1
         h = ocp.h.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
-        cons.append(h)
-        cons_lb.append(cs.repmat(ocp.h_lb, 1, n + 1))
-        cons_ub.append(cs.repmat(ocp.h_ub, 1, n + 1))
-        cons_scale.append(cs.repmat(ocp.h_s, 1, n + 1))
-    # constraints
-    G = cs.vcat([cs.vec(i) for i in cons])
-    G_lb = cs.vcat([cs.vec(i) for i in cons_lb])
-    G_ub = cs.vcat([cs.vec(i) for i in cons_ub])
-    G_s = cs.vcat([cs.vec(i) for i in cons_scale])
+        constraint["h"] = (
+            nlp.bounded(
+                cs.repmat(ocp.h_lb, 1, n + 1), h, cs.repmat(ocp.h_ub, 1, n + 1)
+            ),
+            cs.repmat(ocp.h_s, 1, n + 1),
+        )
+        nlp.subject_to(*constraint["h"])
+
     # simple bounds
-    cons_simple_lb = []
-    cons_simple_ub = []
-    cons_simple_scale = []
     if ocp.t0 is None:
-        t0_lb = ocp.t0_lb
-        t0_ub = ocp.t0_ub
-        cons_simple_lb.append(t0_lb)
-        cons_simple_ub.append(t0_ub)
-        cons_simple_scale.append(ocp.t_s)
+        constraint["t0"] = (nlp.bounded(ocp.t0_lb, t0, ocp.t0_ub), ocp.t_s)
+        nlp.subject_to(*constraint["t0"])
+
     if ocp.tf is None:
-        tf_lb = ocp.tf_lb
-        tf_ub = ocp.tf_ub
-        cons_simple_lb.append(tf_lb)
-        cons_simple_ub.append(tf_ub)
-        cons_simple_scale.append(ocp.t_s)
-    X_lb = cs.repmat(ocp.x_lb, 1, n + 1)
-    X_ub = cs.repmat(ocp.x_ub, 1, n + 1)
-    cons_simple_lb.append(X_lb)
-    cons_simple_ub.append(X_ub)
-    cons_simple_scale.append(cs.repmat(ocp.x_s, 1, n + 1))
-    U_lb = cs.repmat(ocp.u_lb, 1, n)
-    U_ub = cs.repmat(ocp.u_ub, 1, n)
-    cons_simple_lb.append(U_lb)
-    cons_simple_ub.append(U_ub)
-    cons_simple_scale.append(cs.repmat(ocp.u_s, 1, n))
-    W_lb = cs.vcat([cs.vec(i) for i in cons_simple_lb])
-    W_ub = cs.vcat([cs.vec(i) for i in cons_simple_ub])
-    W_s = cs.vcat([cs.vec(i) for i in cons_simple_scale])
-    # assemble
-    nlp.minimize(objective, float(ocp.J_s))
-    nlp.subject_to(nlp.bounded(G_lb, G, G_ub), G_s)
-    nlp.subject_to(nlp.bounded(W_lb, W, W_ub), W_s)
+        constraint["tf"] = (nlp.bounded(ocp.tf_lb, tf, ocp.tf_ub), ocp.t_s)
+        nlp.subject_to(*constraint["tf"])
+
+    constraint["X"] = (
+        nlp.bounded(cs.repmat(ocp.x_lb, 1, n + 1), X, cs.repmat(ocp.x_ub, 1, n + 1)),
+        cs.repmat(ocp.x_s, 1, n + 1),
+    )
+    nlp.subject_to(*constraint["X"])
+
+    constraint["U"] = (
+        nlp.bounded(cs.repmat(ocp.u_lb, 1, n), U, cs.repmat(ocp.u_ub, 1, n)),
+        cs.repmat(ocp.u_s, 1, n),
+    )
+    nlp.subject_to(*constraint["U"])
+
     dis_ocp = {}
     dis_ocp["t"] = t
     dis_ocp["t0"] = t0
     dis_ocp["tf"] = tf
     dis_ocp["X"] = X
     dis_ocp["U"] = U
-    dis_ocp["dynamics"] = f
-    dis_ocp["objective"] = objective
+    dis_ocp["L"] = L
+    if ocp.h is None:
+        dis_ocp["h"] = None
+    else:
+        dis_ocp["h"] = h
+    dis_ocp["E"] = E
+    dis_ocp["e"] = e
+    dis_ocp["f"] = f
+    dis_ocp["J"] = objective
     if disc_opt.method in ["bw_euler", "her_sim", "trap"]:
         print("Costate estimation not implemented for IRK methods")
-        dis_ocp["costate"] = np.full(
-            shape=get_costate(ocp, disc_opt,nlp.lam_g).shape, fill_value=np.nan
-        )
+        duals = get_costate(ocp, nlp, constraint, t)
+        for name, value in duals.items():
+            if value is not None:
+                duals[name] = np.full(shape=value.shape, fill_value=np.nan)
+        dis_ocp.update({"dual": duals})
     else:
-        dis_ocp["costate"] = get_costate(ocp, disc_opt,nlp.lam_g)
+        duals = get_costate(ocp, nlp, constraint, t)
+        dis_ocp.update({"dual": duals})
     return dis_ocp
 
 
@@ -877,14 +861,37 @@ def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> cs.MX:
     else:
         raise ValueError("Wrong option for method")
 
+def kkt_ub_lb(kkt: cs.DM):
+    pieces = kkt.shape[1] // 2
+    lbub = cs.horzsplit(kkt, pieces)
+    return lbub[1] - lbub[0]
 
-def get_costate(ocp: Ocp,disc_opt:disc_opt, lam_g):
-    nx = ocp.nx
-    n = disc_opt.n
-    ne = ocp.e.size_out(0)[0]
-    lam_dyn = -lam_g[ne : ne + nx * n, :]
-    costate = cs.reshape(lam_dyn, nx, n)
-    return costate
+
+def get_costate(ocp: Ocp, nlp: cs.Opti, constraint: dict, t):
+    dual = {}
+    dual["kkt_e"] = kkt_ub_lb(nlp.dual(constraint["e"][0]))
+    dual["lam_e"] = dual["kkt_e"]  # 1 /n+1
+    dual["kkt_f"] = kkt_ub_lb(nlp.dual(constraint["f"][0]))
+    dual["lam_x"] = -dual["kkt_f"]  # 1...n+1
+    if ocp.h is not None:
+        dual["kkt_h"] = kkt_ub_lb(nlp.dual(constraint["h"][0]))
+        dt = t[:, 1:] - t[:, 0:-1]
+        dual["lam_h"] = (dual["kkt_h"])[:, 0:-1] / cs.repmat(dt,dual['kkt_h'].shape[0],1)  # 0...n
+    else:
+        dual["kkt_h"] = None
+        dual["lam_h"] = None
+    if ocp.t0 is not None:
+        dual["t0"] = None
+    else:
+        dual["t0"] = kkt_ub_lb(nlp.dual(constraint["t0"][0]))
+    if ocp.t0 is not None:
+        dual["tf"] = None
+    else:
+        dual["tf"] = kkt_ub_lb(nlp.dual(constraint["tf"][0]))
+    dual["kkt_X"] = kkt_ub_lb(nlp.dual(constraint["X"][0]))
+    dual["kkt_U"] = kkt_ub_lb(nlp.dual(constraint["U"][0]))
+
+    return dual
 
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
@@ -914,7 +921,7 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: dict, name: str = "solution"):
     tvars = [tx, tu, tlam]
     X = sol.value(dis_ocp["X"]).reshape(dis_ocp["X"].shape)
     U = sol.value(dis_ocp["U"]).reshape(dis_ocp["U"].shape)
-    lam = sol.value(dis_ocp["costate"]).reshape(dis_ocp["costate"].shape)
+    lam = sol.value(dis_ocp['dual']["lam_x"]).reshape(dis_ocp['dual']["lam_x"].shape)
 
     with PdfPages(f"{name}.pdf") as pdf:
         for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam], tvars):

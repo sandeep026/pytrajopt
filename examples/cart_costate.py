@@ -68,9 +68,9 @@ def cart_costate():
 
     t = np.linspace(0, 2, disc_data["n"] + 1)[1:]
     out = [
-        sol.value(dis_ocp["costate"])[0, :],
+        sol.value(dis_ocp['dual']["lam_x"])[0, :],
         np.ones(disc_data["n"] ),
-        sol.value(dis_ocp["costate"])[1, :],
+        sol.value(dis_ocp['dual']["lam_x"])[1, :],
         1 - 0.5 * np.exp(np.linspace(0, 2, disc_data["n"] )),
     ]
     labels = [
