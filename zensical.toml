@@ -1,6 +1,6 @@
 [project]
 site_url = "https://www.example.com/"
-site_name = "Pytraopt documentation"
+site_name = "Pytrajopt documentation"
 watch = ["./pytrajopt"]
 site_description = "A minimal tool to solve multiphase optimal control problems using direct multiple shooting and collocation"
 site_author = "R Sandeepkumar"
