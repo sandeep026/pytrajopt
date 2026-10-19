@@ -64,6 +64,7 @@ def shuttle_max_crossrange():
     alpha_deg = (180.0 / cs.pi) * alpha
     cL = a0 + a1 * alpha_deg
     cD = b0 + b1 * alpha_deg + b2 * (alpha_deg**2)
+    q_heat=c0 + c1 * alpha_deg + c2 * (alpha_deg**2)+c3*(alpha_deg**3)
     
     D = 0.5 * cD * rho_a * (v**2) * S
     L = 0.5 * cL * rho_a * (v**2) * S
@@ -95,6 +96,10 @@ def shuttle_max_crossrange():
         f=f,
     )
     disc=disc_opt(**disc_data)
+
+    #state bounds
+    ocp_data['x_lb']=cs.DM([0,-89*deg2rad,1,-89*deg2rad,-cs.DM.inf()])
+    ocp_data['x_ub']=cs.DM([cs.DM.inf(),89*deg2rad,cs.DM.inf(),89*deg2rad,cs.DM.inf()])
 
     # Control bounds
     ocp_data["u_lb"] = cs.DM([-90.0 * deg2rad, -90.0 * deg2rad])
