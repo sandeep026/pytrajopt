@@ -52,7 +52,7 @@ def cart_costate():
 
     disc_data={}
     disc_data["n"] = 50
-    disc_data["method"] = "exp_mid"
+    disc_data["method"] = "bw_euler"
     disc=disc_opt(**disc_data)
 
     ocp = Ocp(**ocp_data)
@@ -90,6 +90,6 @@ def cart_costate():
     plot_solution(sol,dis_ocp,'cart_costate_sol')
     check_feasibility(ocp,dis_ocp,sol,'cart_costate_feas')
 
-
+    
 if __name__ == "__main__":
     cart_costate()

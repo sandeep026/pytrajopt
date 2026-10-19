@@ -35,21 +35,22 @@ def ffrb():
     )
 
     disc_data={}
-    disc_data['n']=200
-    disc_data["method"] = casadi_integrator(
-        plugin="rk",
-        #plugin_options={
-        #    "interpolation_order": 3,
-        #    "collocation_scheme": "legendre",
-        #    "rootfinder": "fast_newton",
-        #    "number_of_finite_elements": 1,
-        #    "simplify": False,
-        #},
-        nx=ocp_data["nx"],
-        nu=ocp_data["nu"],
-        path=[ts, xs, us],
-        f=f,
-    )
+    disc_data['n']=1000
+    disc_data["method"] ='her_sim'
+    #casadi_integrator(
+    #    plugin="rk",
+    #    #plugin_options={
+    #    #    "interpolation_order": 3,
+    #    #    "collocation_scheme": "legendre",
+    #    #    "rootfinder": "fast_newton",
+    #    #    "number_of_finite_elements": 1,
+    #    #    "simplify": False,
+    #    #},
+    #    nx=ocp_data["nx"],
+    #    nu=ocp_data["nu"],
+    #    path=[ts, xs, us],
+    #    f=f,
+    #)
     disc=disc_opt(**disc_data)
 
     ocp_data["f"] = cs.Function(
@@ -134,7 +135,7 @@ def ffrb():
     nlp.set_initial(dis_ocp["U"], Ug)
     nlp.solver(
         "ipopt",
-        {"detect_simple_bounds": False},
+        {"ipopt.linear_solver": 'spral'},
         {
             "max_iter": 5000,
             "tol": 1e-8,

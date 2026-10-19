@@ -752,7 +752,7 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt):
     constraint["e"] = (nlp.bounded(ocp.e_lb, e, ocp.e_ub), ocp.e_s)
     nlp.subject_to(*constraint["e"])
     # dynamics
-    f = get_discrete_dynamics(ocp, disc_opt, t, X, U)
+    f,Xm = get_discrete_dynamics(ocp, disc_opt, t, X, U)
     zr = cs.DM.zeros(f.shape)
     constraint["f"] = (nlp.bounded(zr, f, zr), cs.repmat(ocp.x_s, 1, n))
     nlp.subject_to(*constraint["f"])
@@ -802,7 +802,8 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt):
         dis_ocp["h"] = h
     dis_ocp["E"] = E
     dis_ocp["e"] = e
-    dis_ocp["f"] = f
+    dis_ocp['Xm'] = Xm
+    dis_ocp["f"] = ocp.f.map(n+1,'serial')(t,X,cs.hcat([U,U[:,-1]]))
     dis_ocp["J"] = objective
     if disc_opt.method in ["bw_euler", "her_sim", "trap"]:
         print("Costate estimation not implemented for IRK methods")
@@ -817,7 +818,7 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt):
     return dis_ocp
 
 
-def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> cs.MX:
+def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> tuple:
     F = ocp.f.map(disc_opt.n, "serial")
     Xl = X[:, 0:-1]
     Xr = X[:, 1:]
@@ -829,35 +830,43 @@ def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> cs.MX:
     Fr = F(tr, Xr, U)
     if disc_opt.method == "bw_euler":
         defect = dX - Fr * (h)
-        return defect
+        Xm=Xl+Fr * (h/2)
+        return defect,Xm
     elif disc_opt.method == "fw_euler":
         defect = dX - Fl * h
-        return defect
+        Xm=Xl+Fl * (h/2)
+        return defect,Xm
     elif disc_opt.method == "exp_mid":
-        Fm = F(0.5 * (tl + tr), Xl + h / 2 * F(tl, Xl, U), U)
+        Xm = Xl + h / 2 * F(tl, Xl, U)
+        tm = 0.5 * (tl + tr)
+        Fm = F(tm,Xm , U)
         defect = dX - h * Fm
-        return defect
+        return defect,Xm
     elif disc_opt.method == "trap":
         defect = dX - 0.5 * h * (Fl + Fr)
-        return defect
+        Xm=0.5*(Xl+Xr)
+        return defect,Xm
     elif disc_opt.method == "her_sim":
         Xm = 0.5 * (Xr + Xl) + h / 8 * (Fl - Fr)
         tm = 0.5 * (tr + tl)
         Fm = F(tm, Xm, U)
         defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
-        return defect
+        return defect,Xm
     elif disc_opt.method == "casadi_integrator":
         phi = cs.integrator(
             "phi",
             disc_opt.method.plugin,
             disc_opt.method._scaled_ode,
             0,
-            1,
+            [0.5,1],
             disc_opt.method.plugin_options,
         )
         Phi = phi.map(disc_opt.n, "serial")
-        defect = Xr - Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
-        return defect
+        Xnext=Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
+        Xm=Xnext[:,0::2]
+        Xr_int=Xnext[:,1::2]
+        defect = Xr - Xr_int
+        return defect,Xm
     else:
         raise ValueError("Wrong option for method")
 
@@ -1040,3 +1049,63 @@ def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol,name:str='all'):
             plt.legend()
             pdf.savefig(bbox_inches="tight")
             plt.close()
+
+def mesh_refine(
+    t: np.ndarray,
+    Xn: np.ndarray,
+    Xi: np.ndarray,
+    tol: float
+) -> np.ndarray:
+    t = np.asarray(t, dtype=float)
+    Xn = np.asarray(Xn)
+    Xi = np.asarray(Xi)
+
+    # Validate the mesh
+    if t.ndim != 1 or t.size < 2:
+        raise ValueError("t must be 1D with at least two nodes.")
+
+    if not np.all(np.isfinite(t)):
+        raise ValueError("t must contain only finite values.")
+
+    if np.any(np.diff(t) <= 0):
+        raise ValueError("t must be strictly increasing.")
+
+    if not np.isfinite(tol) or tol < 0:
+        raise ValueError("tol must be finite and nonnegative.")
+
+    # Require one error estimate per interval
+    if Xn.shape != Xi.shape:
+        raise ValueError("Xn and Xi must have the same shape.")
+
+    if Xn.ndim != 2 or Xn.shape[1] != t.size - 1:
+        raise ValueError(
+            "Xn and Xi must have shape (n_states, n_intervals)."
+        )
+
+    if Xn.shape[0] == 0:
+        raise ValueError("At least one state variable is required.")
+
+    if not np.all(np.isfinite(Xn)) or not np.all(np.isfinite(Xi)):
+        raise ValueError("Xn and Xi must contain finite values.")
+
+    # Error estimate and relative scaling
+    err = np.abs(Xn - Xi)
+    gam = 1 + np.max(np.abs(Xi), axis=1, keepdims=True)
+    rel = np.max(err / gam, axis=0)
+
+    # Insert midpoints where the error exceeds tolerance
+    tm = t[:-1] + np.diff(t) / 2
+    refine = rel > tol
+
+    tn = np.empty(t.size + np.count_nonzero(refine))
+    tn[0] = t[0]
+
+    j = 1
+    for i in range(t.size - 1):
+        if refine[i]:
+            tn[j] = tm[i]
+            j += 1
+        tn[j] = t[i + 1]
+        j += 1
+
+    return tn
