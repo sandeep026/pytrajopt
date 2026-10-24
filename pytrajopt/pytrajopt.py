@@ -195,6 +195,10 @@ class disc_opt(BaseModel):
             self.grid=cs.linspace(0,1,self.n+1).T
         if self.grid.shape !=(1,self.n+1):
             raise ValueError(f'Grid shape must be {(1,self.n+1)} but received {self.grid.shape}')
+        if (cs.diff(self.grid)<0).is_one():
+            raise ValueError('Normalized grid width must be positive')
+        #if self.grid[0]!=0 or self.grid[-1]!=1:
+        #    raise ValueError(f'Normalized grid must start and end at 0 and  but recieved grid[0]={self.grid[0]} and grid[-1]={self.grid[-1]}')
         return self
 
 
@@ -960,8 +964,8 @@ def check_feasibility(
     ocp: Ocp, dis_ocp: dict, sol: cs.OptiSol, name: str = "feasibility"
 ):
 
-    X = sol.value(dis_ocp["X"])
-    U = sol.value(dis_ocp["U"])
+    X = sol.value(dis_ocp["X"]).reshape(ocp.nx,-1)
+    U = sol.value(dis_ocp["U"]).reshape(ocp.nu,-1)
     tg = sol.value(dis_ocp["t"])
     x0 = X[:, 0]
     f = ocp.f
@@ -981,7 +985,7 @@ def check_feasibility(
         for i in range(x0.size):
             plt.figure()
             if X.ndim == 1:
-                plt.plot(tg, X)
+                plt.plot(tg, X,label="NLP")
                 plt.plot(td, ivp_sol.y, label="LSODA")
             else:
                 plt.plot(tg, X[i, :], "o", label="NLP")
@@ -1003,7 +1007,7 @@ def check_feasibility(
                 plt.plot(tg[0:-1], U, "o", label="NLP")
                 plt.plot(td, Ud, "--", label="ZOH")
             else:
-                plt.plot(tg[0:-1], U[i, :], "o", label="dis_ocp")
+                plt.plot(tg[0:-1], U[i, :], "o", label="NLP")
                 plt.plot(td, Ud[i, :], "--", label="ZOH")
             plt.xlabel("time [s]")
             plt.ylabel(rf"$u_{i}$")
