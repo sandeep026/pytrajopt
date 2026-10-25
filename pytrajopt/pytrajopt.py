@@ -177,10 +177,11 @@ class casadi_integrator(BaseModel):
 
 # fw_euler - forward Euler
 # bw_euler - backward Euler
+# rk4      - 4th order rk
 # trap     - trapezoidal
 # her_sim  - Hermite Simpson
 dis_methods = (
-    Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim"] | casadi_integrator
+    Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim",'rk4'] | casadi_integrator
 )
 
 class disc_opt(BaseModel):
@@ -197,8 +198,8 @@ class disc_opt(BaseModel):
             raise ValueError(f'Grid shape must be {(1,self.n+1)} but received {self.grid.shape}')
         if (cs.diff(self.grid)<0).is_one():
             raise ValueError('Normalized grid width must be positive')
-        #if self.grid[0]!=0 or self.grid[-1]!=1:
-        #    raise ValueError(f'Normalized grid must start and end at 0 and  but recieved grid[0]={self.grid[0]} and grid[-1]={self.grid[-1]}')
+        if self.grid[0]!=0 or self.grid[-1]!=1:
+            raise ValueError(f'Normalized grid must start and end at 0 and  but recieved grid[0]={self.grid[0]} and grid[-1]={self.grid[-1]}')
         return self
 
 
@@ -832,6 +833,9 @@ def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> tuple:
     dX = Xr - Xl
     Fl = F(tl, Xl, U)
     Fr = F(tr, Xr, U)
+
+
+
     if disc_opt.method == "bw_euler":
         defect = dX - Fr * (h)
         Xm=Xl+Fr * (h/2)
@@ -855,6 +859,15 @@ def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> tuple:
         tm = 0.5 * (tr + tl)
         Fm = F(tm, Xm, U)
         defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
+        return defect,Xm
+    elif disc_opt.method=='rk4':
+        tm =0.5*(tr+tl)
+        K1=F(tl,Xl,U)*h
+        K2=F(tm,Xl+0.5*K1,U)*h
+        K3=F(tm,Xl+0.5*K2,U)*h
+        K4=F(tr,Xr,U)*h
+        defect=dX-1/6*(K1+2*K2+2*K3+K4)
+        Xm=0.5*(Xl+Xr)+1/8*(K1-K4)
         return defect,Xm
     elif disc_opt.method == "casadi_integrator":
         phi = cs.integrator(
