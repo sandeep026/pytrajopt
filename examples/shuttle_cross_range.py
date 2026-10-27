@@ -1,5 +1,5 @@
 import casadi as cs
-from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP, disc_opt
+from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP, disc_opt, DynamicMesh
 
 def shuttle_max_crossrange():
     ocp_data = {}
@@ -80,15 +80,16 @@ def shuttle_max_crossrange():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
     disc_data={}
-    disc_data["n"] = 100
+    disc_data["n"] = 40
     disc_data['method'] = casadi_integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 4,
             "collocation_scheme": "radau",
-            "rootfinder": 'kinsol',
+            "rootfinder": 'newton',
             "number_of_finite_elements": 1,
-            "simplify": True
+            "simplify": True,
+            'error_on_fail':False
         },
         nx=ocp_data["nx"],
         nu=ocp_data["nu"],
@@ -121,8 +122,8 @@ def shuttle_max_crossrange():
     ocp = Ocp(**ocp_data)
 
     nlp=cs.Opti()
-
-    dis_ocp = generate_NLP(ocp,nlp,disc)
+    mesh=DynamicMesh(scale=2000)
+    dis_ocp = generate_NLP(ocp,nlp,disc,mesh)
     nlp.solver("ipopt")
     Xg = cs.vcat(
         [
@@ -134,6 +135,7 @@ def shuttle_max_crossrange():
         ]
     )
 
+    nlp.set_initial(dis_ocp["t"], cs.linspace(0,2000,disc.n+1).T)
     nlp.set_initial(dis_ocp["X"], Xg)
     nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
     nlp.set_initial(dis_ocp["tf"], 2000.0)

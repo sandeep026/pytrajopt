@@ -1,6 +1,6 @@
 import casadi as cs
 import numpy as np
-from pytrajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility,disc_opt
+from pytrajopt import casadi_integrator, plot_solution, Ocp, generate_NLP, check_feasibility,disc_opt,DynamicMesh
 
 
 def ffrb():
@@ -35,22 +35,21 @@ def ffrb():
     )
 
     disc_data={}
-    disc_data['n']=1000
-    disc_data["method"] ='her_sim'
-    #casadi_integrator(
-    #    plugin="rk",
-    #    #plugin_options={
-    #    #    "interpolation_order": 3,
-    #    #    "collocation_scheme": "legendre",
-    #    #    "rootfinder": "fast_newton",
-    #    #    "number_of_finite_elements": 1,
-    #    #    "simplify": False,
-    #    #},
-    #    nx=ocp_data["nx"],
-    #    nu=ocp_data["nu"],
-    #    path=[ts, xs, us],
-    #    f=f,
-    #)
+    disc_data['n']=50
+    disc_data["method"] =casadi_integrator(
+        plugin="collocation",
+        plugin_options={
+            "interpolation_order": 1,
+            "collocation_scheme": "legendre",
+            "rootfinder": "fast_newton",
+            "number_of_finite_elements": 1,
+            "simplify": True,
+        },
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
+    )
     disc=disc_opt(**disc_data)
 
     ocp_data["f"] = cs.Function(
@@ -118,8 +117,9 @@ def ffrb():
 
     nlp=cs.Opti()
 
+    mesh=DynamicMesh(scale=float(ocp.tf-ocp.t0),offset=0,k1=0.1,k2=2)
     # Generate the nonlinear program
-    dis_ocp = generate_NLP(ocp,nlp,disc)
+    dis_ocp = generate_NLP(ocp,nlp,disc,mesh)
 
     Xg = cs.vcat(
         [
@@ -131,6 +131,7 @@ def ffrb():
         [cs.linspace(0.1, 0.9, disc.n).T for i in range(ocp.nu)]
     )
 
+    nlp.set_initial(dis_ocp['t'],cs.linspace(0,12,disc.n+1).T)
     nlp.set_initial(dis_ocp["X"], Xg)
     nlp.set_initial(dis_ocp["U"], Ug)
     nlp.solver(

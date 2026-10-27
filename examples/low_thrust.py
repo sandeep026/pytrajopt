@@ -47,20 +47,21 @@ def low_thrust():
 
     disc_data={}
     disc_data["n"] = 100
-    disc_data['method'] = casadi_integrator(
-        plugin="collocation",
-        plugin_options={
-            "interpolation_order": 4,
-            "collocation_scheme": "legendre",
-            "rootfinder":'kinsol',
-            "number_of_finite_elements": 1,
-            "simplify":True
-        },
-        nx=ocp_data["nx"],
-        nu=ocp_data["nu"],
-        path=[ts, xs, us],
-        f=f,
-    )
+    disc_data['method'] = 'rk4'
+    #casadi_integrator(
+    #    plugin="collocation",
+    #    plugin_options={
+    #        "interpolation_order": 4,
+    #        "collocation_scheme": "legendre",
+    #        "rootfinder":'kinsol',
+    #        "number_of_finite_elements": 1,
+    #        "simplify":True
+    #    },
+    #    nx=ocp_data["nx"],
+    #    nu=ocp_data["nu"],
+    #    path=[ts, xs, us],
+    #    f=f,
+    #)
     disc=disc_opt(**disc_data)
 
     ocp_data["u_lb"] = cs.DM([-0.01] * 2)
@@ -79,8 +80,8 @@ def low_thrust():
 
     ocp = Ocp(**ocp_data)
     nlp=cs.Opti()
-    dis_ocp = generate_NLP(ocp,nlp,disc)
-    nlp.solver("ipopt")
+    dis_ocp = generate_NLP(ocp,nlp,disc,True)
+    nlp.solver("ipopt",{},{'tol':1e-5})
     Xg = cs.vcat(
         [
             cs.linspace(1, 4,   disc.n + 1).T,
@@ -89,6 +90,7 @@ def low_thrust():
             cs.linspace(1, 0.5, disc.n + 1).T,
         ]
     )
+    nlp.set_initial(dis_ocp['t'],cs.linspace(0,50,disc.n+1).T)
     nlp.set_initial(dis_ocp["X"], Xg)
     nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
     nlp.set_initial(dis_ocp["tf"], 46)

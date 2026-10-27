@@ -7,5 +7,6 @@ from pytrajopt.pytrajopt import (
     plot_solution,
     plot_solution_all_phase,
     disc_opt,
-    cubic_spline_interp
+    cubic_spline_interp,
+    DynamicMesh
 )

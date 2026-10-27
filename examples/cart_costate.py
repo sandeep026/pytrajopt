@@ -51,16 +51,17 @@ def cart_costate():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
     disc_data={}
-    disc_data["n"] = 50
-    disc_data["method"] = "bw_euler"
+    disc_data["n"] = 200
+    disc_data["method"] = "fw_euler"
     disc=disc_opt(**disc_data)
 
     ocp = Ocp(**ocp_data)
 
     nlp=cs.Opti()
 
-    dis_ocp = generate_NLP(ocp,nlp,disc)
+    dis_ocp = generate_NLP(ocp,nlp,disc,True)
     nlp.solver("ipopt")
+    nlp.set_initial(dis_ocp["t"], cs.linspace(0,2,disc.n+1).T)
     nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
     nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
     sol = nlp.solve()

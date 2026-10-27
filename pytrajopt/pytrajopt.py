@@ -718,21 +718,41 @@ class Ocp(BaseModel):
                 f"{name} is incorrect shape. Expected {known_shape}, got {vec.shape}"
             )
 
+class DynamicMesh(BaseModel):
+    scale:float=1 #>0
+    offset:float=0
+    k1:float=0.1 #>0
+    k2:float=2 #>1
 
-def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt):
+def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|None=None):
     n = disc_opt.n
     nx, nu = ocp.nx, ocp.nu
-    if ocp.t0 is None:
-        t0 = nlp.variable()
-        nlp.set_linear_scale(t0, ocp.t_s, ocp.t_o)
+
+    if mesh is None:
+        if ocp.t0 is None:
+            t0 = nlp.variable()
+            nlp.set_linear_scale(t0, ocp.t_s, ocp.t_o)
+        else:
+            t0 = ocp.t0
+        if ocp.tf is None:
+            tf = nlp.variable()
+            nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
+        else:
+            tf = ocp.tf
+        t = t0 + (tf - t0) * disc_opt.grid
     else:
-        t0 = ocp.t0
-    if ocp.tf is None:
-        tf = nlp.variable()
-        nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
-    else:
-        tf = ocp.tf
-    t = t0 + (tf - t0) * disc_opt.grid
+        t=nlp.variable(1,disc_opt.n+1)
+        nlp.set_linear_scale(t,cs.repmat(mesh.scale,1,disc_opt.n+1),cs.repmat(mesh.offset,1,disc_opt.n+1))
+        t0=t[:,0]
+        tf=t[:,-1]
+        if ocp.t0 is not None:
+            nlp.subject_to(t[:,0]==ocp.t0)
+        if ocp.tf is not None:
+            nlp.subject_to(t[:,-1]==ocp.tf)
+        dt=cs.diff(t)
+        dtn=(tf-t0)/disc_opt.n
+        nlp.subject_to(nlp.bounded(mesh.k1*dtn,dt,mesh.k2*dtn))
+    
     X = nlp.variable(nx, n + 1)
     nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
     U = nlp.variable(nu, n)
@@ -810,8 +830,8 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt):
     dis_ocp['Xm'] = Xm
     dis_ocp["f"] = ocp.f.map(n+1,'serial')(t,X,cs.hcat([U,U[:,-1]]))
     dis_ocp["J"] = objective
-    if disc_opt.method in ["bw_euler", "her_sim", "trap"]:
-        print("Costate estimation not implemented for IRK methods")
+    if disc_opt.method in ["bw_euler", "her_sim", "trap"] or mesh is not None:
+        print("Costate estimation not implemented for IRK methods and adaptive mesh")
         duals = get_costate(ocp, nlp, constraint, t)
         for name, value in duals.items():
             if value is not None:
@@ -865,9 +885,9 @@ def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> tuple:
         K1=F(tl,Xl,U)*h
         K2=F(tm,Xl+0.5*K1,U)*h
         K3=F(tm,Xl+0.5*K2,U)*h
-        K4=F(tr,Xr,U)*h
+        K4=F(tr,Xl+K3,U)*h
         defect=dX-1/6*(K1+2*K2+2*K3+K4)
-        Xm=0.5*(Xl+Xr)+1/8*(K1-K4)
+        Xm=Xl+1/6*(K1+K2)
         return defect,Xm
     elif disc_opt.method == "casadi_integrator":
         phi = cs.integrator(
@@ -990,7 +1010,8 @@ def check_feasibility(
 
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
     options = {"rtol": 1e-12, "atol": 1e-12}
-    ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, "LSODA", td, options)
+    ode_meth="Radau"
+    ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, ode_meth, td, options)
     if ivp_sol.success is False:
         raise ValueError("Time marching failed")
 
@@ -999,10 +1020,10 @@ def check_feasibility(
             plt.figure()
             if X.ndim == 1:
                 plt.plot(tg, X,label="NLP")
-                plt.plot(td, ivp_sol.y, label="LSODA")
+                plt.plot(td, ivp_sol.y, label=ode_meth)
             else:
                 plt.plot(tg, X[i, :], "o", label="NLP")
-                plt.plot(td, ivp_sol.y[i, :], "--", label="LSODA")
+                plt.plot(td, ivp_sol.y[i, :], "--", label=ode_meth)
             plt.xlabel("time [s]")
             plt.ylabel(rf"$x_{i}$")
             plt.grid(True)
@@ -1017,7 +1038,7 @@ def check_feasibility(
         Ud = zoh(td)
         for i in range(nu):
             if U.ndim == 1:
-                plt.plot(tg[0:-1], U, "o", label="NLP")
+                plt.plot(tg[0:-1], U, "o", label="NLP",markeredgecolor='black')
                 plt.plot(td, Ud, "--", label="ZOH")
             else:
                 plt.plot(tg[0:-1], U[i, :], "o", label="NLP")
