@@ -41,7 +41,7 @@ def moon():
     )
     ocp_data["x_lb"] = cs.DM([0, -cs.DM.inf(), -cs.DM.inf(), 0])
     ocp_data["x_ub"] = cs.DM([cs.DM.inf(), 0, cs.DM.inf(), 100])
-    n = 100
+    n = 40
     ocp_data["u_lb"] = cs.DM([0, 0.825])
     ocp_data["u_ub"] = cs.DM([3, 8.26])
 
@@ -49,7 +49,7 @@ def moon():
     nlp = cs.Opti()
 
     method = casadi_integrator(
-        plugin="collocation",
+        plugin="rk",
         plugin_options={"number_of_finite_elements": 1, "simplify": True},
         nx=ocp.nx,
         nu=ocp.nu,

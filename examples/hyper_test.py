@@ -96,7 +96,7 @@ def solve():
     aug = True
     ocp, path = get_ocp(aug)
     nlp = cs.Opti()
-    method = 'bw_euler'
+    method = 'her_sim'
     #casadi_integrator(
     #    plugin="collocation",
     #    plugin_options={"collocation_scheme": "legendre", "interpolation_order": 1,'number_of_finite_elements':1},
