@@ -181,25 +181,31 @@ class casadi_integrator(BaseModel):
 # trap     - trapezoidal
 # her_sim  - Hermite Simpson
 dis_methods = (
-    Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim",'rk4'] | casadi_integrator
+    Literal["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim", "rk4"]
+    | casadi_integrator
 )
+
 
 class disc_opt(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
-    n:PositiveInt
-    method:dis_methods
-    grid:cs.DM|None=None
+    n: PositiveInt
+    method: dis_methods
+    grid: cs.DM | None = None
 
     @model_validator(mode="after")
     def check_grid(self) -> "disc_opt":
         if self.grid is None:
-            self.grid=cs.linspace(0,1,self.n+1).T
-        if self.grid.shape !=(1,self.n+1):
-            raise ValueError(f'Grid shape must be {(1,self.n+1)} but received {self.grid.shape}')
-        if (cs.diff(self.grid)<0).is_one():
-            raise ValueError('Normalized grid width must be positive')
-        if self.grid[0]!=0 or self.grid[-1]!=1:
-            raise ValueError(f'Normalized grid must start and end at 0 and  but recieved grid[0]={self.grid[0]} and grid[-1]={self.grid[-1]}')
+            self.grid = cs.linspace(0, 1, self.n + 1).T
+        if self.grid.shape != (1, self.n + 1):
+            raise ValueError(
+                f"Grid shape must be {(1, self.n + 1)} but received {self.grid.shape}"
+            )
+        if (cs.diff(self.grid) < 0).is_one():
+            raise ValueError("Normalized grid width must be positive")
+        if self.grid[0] != 0 or self.grid[-1] != 1:
+            raise ValueError(
+                f"Normalized grid must start and end at 0 and  but recieved grid[0]={self.grid[0]} and grid[-1]={self.grid[-1]}"
+            )
         return self
 
 
@@ -612,6 +618,12 @@ class Ocp(BaseModel):
                 raise ValueError(
                     "Cannot set scales for time variables when both t0 and tf are fixed"
                 )
+            names = ["t_s", "t_o"]
+            defaults = [cs.DM(1), cs.DM(0)]
+            for name, default in zip(names, defaults):
+                setattr(self, name, default)
+                Ocp.check_nan(getattr(self, name), name)
+                Ocp.check_shape(getattr(self, name), (1, 1), name)
 
         if self.h is not None:
             if self.h_s is None:
@@ -718,16 +730,20 @@ class Ocp(BaseModel):
                 f"{name} is incorrect shape. Expected {known_shape}, got {vec.shape}"
             )
 
-class DynamicMesh(BaseModel):
-    scale:float=1 #>0
-    offset:float=0
-    k1:float=0.1 #>0
-    k2:float=2 #>1
 
-def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|None=None):
+class DynamicMesh(BaseModel):
+    scale: float = 1  # >0
+    offset: float = 0
+    k1: float = 0.1  # >0
+    k2: float = 2  # >1
+
+
+def generate_NLP(
+    ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt, mesh: DynamicMesh | None = None
+):
     n = disc_opt.n
     nx, nu = ocp.nx, ocp.nu
-
+    constraint = {}
     if mesh is None:
         if ocp.t0 is None:
             t0 = nlp.variable()
@@ -741,18 +757,34 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|Non
             tf = ocp.tf
         t = t0 + (tf - t0) * disc_opt.grid
     else:
-        t=nlp.variable(1,disc_opt.n+1)
-        nlp.set_linear_scale(t,cs.repmat(mesh.scale,1,disc_opt.n+1),cs.repmat(mesh.offset,1,disc_opt.n+1))
-        t0=t[:,0]
-        tf=t[:,-1]
+        t = nlp.variable(1, disc_opt.n + 1)
+        nlp.set_linear_scale(
+            t,
+            cs.repmat(mesh.scale, 1, disc_opt.n + 1),
+            cs.repmat(mesh.offset, 1, disc_opt.n + 1),
+        )
+        t0 = t[:, 0]
+        tf = t[:, -1]
         if ocp.t0 is not None:
-            nlp.subject_to(t[:,0]==ocp.t0)
+            constraint["dynamic_mesh_t0"] = (
+                nlp.bounded(cs.DM(0), t[:, 0] - ocp.t0, cs.DM(0)),
+                ocp.t_s,
+            )
+            nlp.subject_to(constraint["dynamic_mesh_t0"][0])
         if ocp.tf is not None:
-            nlp.subject_to(t[:,-1]==ocp.tf)
-        dt=cs.diff(t)
-        dtn=(tf-t0)/disc_opt.n
-        nlp.subject_to(nlp.bounded(mesh.k1*dtn,dt,mesh.k2*dtn))
-    
+            constraint["dynamic_mesh_tf"] = (
+                nlp.bounded(cs.DM(0), t[:, -1] - ocp.tf, cs.DM(0)),
+                ocp.t_s,
+            )
+            nlp.subject_to(constraint["dynamic_mesh_tf"][0])
+        dt = cs.diff(t)
+        dtn = (tf - t0) / disc_opt.n
+        constraint["dynamics_mesh_dt"] = (
+            nlp.bounded(mesh.k1 * dtn, dt, mesh.k2 * dtn),
+            cs.repmat(ocp.t_s, 1, n + 1),
+        )
+        nlp.subject_to(constraint["dynamics_mesh_dt"][0])
+
     X = nlp.variable(nx, n + 1)
     nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
     U = nlp.variable(nu, n)
@@ -773,11 +805,10 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|Non
     nlp.minimize(objective, float(ocp.J_s))
     # event constraints
     e = ocp.e(*event_ip)
-    constraint = {}
     constraint["e"] = (nlp.bounded(ocp.e_lb, e, ocp.e_ub), ocp.e_s)
     nlp.subject_to(*constraint["e"])
     # dynamics
-    f,Xm = get_discrete_dynamics(ocp, disc_opt, t, X, U)
+    f, Xm = get_discrete_dynamics(ocp, disc_opt, t, X, U)
     zr = cs.DM.zeros(f.shape)
     constraint["f"] = (nlp.bounded(zr, f, zr), cs.repmat(ocp.x_s, 1, n))
     nlp.subject_to(*constraint["f"])
@@ -815,6 +846,12 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|Non
     nlp.subject_to(*constraint["U"])
 
     dis_ocp = {}
+    dis_ocp["n"] = n
+    dis_ocp["nx"] = ocp.nx
+    dis_ocp["nu"] = ocp.nu
+    dis_ocp["ne"] = ocp.e.size_out(0)[0]
+    dis_ocp["nh"] = ocp.h.size_out(0)[0] if ocp.h is not None else None
+
     dis_ocp["t"] = t
     dis_ocp["t0"] = t0
     dis_ocp["tf"] = tf
@@ -827,8 +864,8 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|Non
         dis_ocp["h"] = h
     dis_ocp["E"] = E
     dis_ocp["e"] = e
-    dis_ocp['Xm'] = Xm
-    dis_ocp["f"] = ocp.f.map(n+1,'serial')(t,X,cs.hcat([U,U[:,-1]]))
+    dis_ocp["Xm"] = Xm
+    dis_ocp["f"] = ocp.f.map(n + 1, "serial")(t, X, cs.hcat([U, U[:, -1]]))
     dis_ocp["J"] = objective
     if disc_opt.method in ["bw_euler", "her_sim", "trap"] or mesh is not None:
         print("Costate estimation not implemented for IRK methods and adaptive mesh")
@@ -840,102 +877,237 @@ def generate_NLP(ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt,mesh:DynamicMesh|Non
     else:
         duals = get_costate(ocp, nlp, constraint, t)
         dis_ocp.update({"dual": duals})
+    DisOcp(**dis_ocp)
     return dis_ocp
 
 
-def get_discrete_dynamics(ocp: Ocp,disc_opt:disc_opt, t, X, U) -> tuple:
+class DisOcp(BaseModel):
+    """
+    Class which has all expressions related to the discrete OCP
+
+    Post solving the NLP via opti, they can be accessed and numerically
+    evaluate via Optisol
+
+    Shapes checked post creation to ensure transcription was done right
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    t: cs.MX | cs.DM
+    t0: cs.MX | cs.DM | float | int
+    tf: cs.MX | cs.DM | float | int
+    X: cs.MX
+    Xm: cs.MX
+    U: cs.MX
+    L: cs.MX | cs.DM | float | int
+    E: cs.MX | cs.DM | float | int
+    J: cs.MX | cs.DM | float | int
+    f: cs.MX
+    e: cs.MX
+    h: cs.MX | None
+    dual: dict[str, cs.MX | np.ndarray | None]
+    nx: int
+    nu: int
+    n: int
+    ne: int
+    nh: int | None
+
+    @model_validator(mode="after")
+    def check(self) -> "DisOcp":
+        """
+        Checks the shape of every expression associated with discrete OCP
+        obtained from transcription.
+
+        Acts as check on transcription itself and help to find bugs
+
+        Returns
+        -------
+        DisOcp
+            A class which holds the discrete OCP
+        """
+
+        self.check_shape(self.t, (1, self.n + 1), "time vector")
+        self.check_shape(self.t0, (1, 1), "t0")
+        self.check_shape(self.tf, (1, 1), "tf")
+
+        self.check_shape(self.X, (self.nx, self.n + 1), "State matrix")
+        self.check_shape(self.Xm, (self.nx, self.n), "Midpoint state matrix")
+        self.check_shape(self.U, (self.nu, self.n), "Control matrix")
+
+        self.check_shape(self.L, (1, 1), "Lagrange objective")
+        self.check_shape(self.E, (1, 1), "Mayer objective")
+        self.check_shape(self.J, (1, 1), "Total objective")
+        self.check_shape(
+            self.f, (self.nx, self.n + 1), "dynamics matrix (f of xd=f(x,u))"
+        )
+        self.check_shape(self.e, (self.ne, 1), "event constraint")
+        self.check_shape(self.h, (self.nh, self.n + 1), "path constraint")
+
+        shapes = {
+            "e": (self.ne, 1),
+            "f": (self.nx, self.n),
+            "X": (self.nx, self.n + 1),
+            "U": (self.nu, self.n),
+            "t0": (1, 1),
+            "tf": (1, 1),
+            "dt": (1, self.n + 1),
+        }
+        if self.nh is not None:
+            shapes.update({'h':(self.nh,self.n+1)})
+        for name, dual in self.dual.items():
+            if "kkt" in name:
+                self.check_shape(
+                    dual,
+                    shapes[name.rsplit("_", 1)[-1]],
+                    f"KKT mutipliers of {name.rsplit('_', 1)[-1]} constraint",
+                )
+            if "lam" in name and any(i in name for i in ("x", "e")):
+                self.check_shape(dual, shapes[name[-1]], f"Costate estimate of {name}")
+        return self
+
+    @classmethod
+    def check_shape(cls, exp: cs.MX | cs.DM | float, shape: tuple, name: str):
+        """
+        Checks if predefined shapes match
+
+        If the shape has none, the OCP may not have given expression
+
+        If expression is none, KKT/costate estimates were not defined
+
+        Parameters
+        ----------
+        exp : cs.MX | cs.DM | float
+            expression
+        shape : tuple
+            given shape
+        name : str
+            name of expression
+
+        Raises
+        ------
+        ValueError
+            Shape mismatch
+        """
+        if None in shape:
+            print(f"{name} not in OCP, shape checks ignored")
+            return
+        if exp is None:
+            print(f"{name} not implemented")
+            return
+
+        if isinstance(exp, (cs.DM, cs.MX)) and exp.shape != shape:
+            raise ValueError(
+                f"Discrete {name} must be of shape {shape} but received {exp.shape}"
+            )
+
+
+def get_discrete_dynamics(ocp: Ocp, disc_opt: disc_opt, t, X, U) -> tuple:
     F = ocp.f.map(disc_opt.n, "serial")
     Xl = X[:, 0:-1]
     Xr = X[:, 1:]
     tl = t[:, 0:-1]
     tr = t[:, 1:]
-    h = cs.repmat(t[:, 1:] - t[:, 0:-1],ocp.nx,1)
+    h = cs.repmat(t[:, 1:] - t[:, 0:-1], ocp.nx, 1)
     dX = Xr - Xl
     Fl = F(tl, Xl, U)
     Fr = F(tr, Xr, U)
 
-
-
     if disc_opt.method == "bw_euler":
         defect = dX - Fr * (h)
-        Xm=Xl+Fr * (h/2)
-        return defect,Xm
+        Xm = Xl + Fr * (h / 2)
+        return defect, Xm
     elif disc_opt.method == "fw_euler":
         defect = dX - Fl * h
-        Xm=Xl+Fl * (h/2)
-        return defect,Xm
+        Xm = Xl + Fl * (h / 2)
+        return defect, Xm
     elif disc_opt.method == "exp_mid":
         Xm = Xl + h / 2 * F(tl, Xl, U)
         tm = 0.5 * (tl + tr)
-        Fm = F(tm,Xm , U)
+        Fm = F(tm, Xm, U)
         defect = dX - h * Fm
-        return defect,Xm
+        return defect, Xm
     elif disc_opt.method == "trap":
         defect = dX - 0.5 * h * (Fl + Fr)
-        Xm=0.5*(Xl+Xr)
-        return defect,Xm
+        Xm = 0.5 * (Xl + Xr)
+        return defect, Xm
     elif disc_opt.method == "her_sim":
         Xm = 0.5 * (Xr + Xl) + h / 8 * (Fl - Fr)
         tm = 0.5 * (tr + tl)
         Fm = F(tm, Xm, U)
         defect = dX - h / 6 * (Fl + 4 * Fm + Fr)
-        return defect,Xm
-    elif disc_opt.method=='rk4':
-        tm =0.5*(tr+tl)
-        K1=F(tl,Xl,U)*h
-        K2=F(tm,Xl+0.5*K1,U)*h
-        K3=F(tm,Xl+0.5*K2,U)*h
-        K4=F(tr,Xl+K3,U)*h
-        defect=dX-1/6*(K1+2*K2+2*K3+K4)
-        Xm=Xl+1/6*(K1+K2)
-        return defect,Xm
+        return defect, Xm
+    elif disc_opt.method == "rk4":
+        tm = 0.5 * (tr + tl)
+        K1 = F(tl, Xl, U) * h
+        K2 = F(tm, Xl + 0.5 * K1, U) * h
+        K3 = F(tm, Xl + 0.5 * K2, U) * h
+        K4 = F(tr, Xl + K3, U) * h
+        defect = dX - 1 / 6 * (K1 + 2 * K2 + 2 * K3 + K4)
+        Xm = Xl + 1 / 6 * (K1 + K2)
+        return defect, Xm
     elif disc_opt.method == "casadi_integrator":
         phi = cs.integrator(
             "phi",
             disc_opt.method.plugin,
             disc_opt.method._scaled_ode,
             0,
-            [0.5,1],
+            [0.5, 1],
             disc_opt.method.plugin_options,
         )
         Phi = phi.map(disc_opt.n, "serial")
-        Xnext=Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
-        Xm=Xnext[:,0::2]
-        Xr_int=Xnext[:,1::2]
+        Xnext = Phi(x0=Xl, p=cs.vcat([U, tl, tr]))["xf"]
+        Xm = Xnext[:, 0::2]
+        Xr_int = Xnext[:, 1::2]
         defect = Xr - Xr_int
-        return defect,Xm
+        return defect, Xm
     else:
         raise ValueError("Wrong option for method")
 
+
 def kkt_ub_lb(kkt: cs.DM):
-    pieces = kkt.shape[1] // 2
-    lbub = cs.horzsplit(kkt, pieces)
+    if kkt.shape != (1, 1):
+        pieces = kkt.shape[1] // 2
+        lbub = cs.horzsplit(kkt, pieces)
+    else:
+        pass
     return lbub[1] - lbub[0]
 
 
-def get_costate(ocp: Ocp, nlp: cs.Opti, constraint: dict, t):
+def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
     dual = {}
-    dual["kkt_e"] = kkt_ub_lb(nlp.dual(constraint["e"][0]))
-    dual["lam_e"] = dual["kkt_e"]  # 1 /n+1
-    dual["kkt_f"] = kkt_ub_lb(nlp.dual(constraint["f"][0]))
-    dual["lam_x"] = -dual["kkt_f"]  # 1...n+1
-    if ocp.h is not None:
-        dual["kkt_h"] = kkt_ub_lb(nlp.dual(constraint["h"][0]))
-        dt = t[:, 1:] - t[:, 0:-1]
-        dual["lam_h"] = (dual["kkt_h"])[:, 0:-1] / cs.repmat(dt,dual['kkt_h'].shape[0],1)  # 0...n
-    else:
-        dual["kkt_h"] = None
-        dual["lam_h"] = None
-    if ocp.t0 is not None:
-        dual["t0"] = None
-    else:
-        dual["t0"] = kkt_ub_lb(nlp.dual(constraint["t0"][0]))
-    if ocp.t0 is not None:
-        dual["tf"] = None
-    else:
-        dual["tf"] = kkt_ub_lb(nlp.dual(constraint["tf"][0]))
-    dual["kkt_X"] = kkt_ub_lb(nlp.dual(constraint["X"][0]))
-    dual["kkt_U"] = kkt_ub_lb(nlp.dual(constraint["U"][0]))
+
+    for name, constraint in constraints.items():
+        dual[f"kkt_{name}"] = kkt_ub_lb(nlp.dual(constraint[0]))
+        if name == "e":
+            dual[f"lam_{name}"] = dual[f"kkt_{name}"]
+        if name == "f":
+            dual[f"lam_{name}"] = -dual[f"kkt_{name}"]
+        if name == "h":
+            dt = t[:, 1:] - t[:, 0:-1]
+            dual[f"lam_{name}"] = dual[f"kkt_{name}"][:, 0:-1] / cs.repmat(
+                dt, dual[f"kkt_{name}"].shape[0], 1
+            )
+
+    #    dual["kkt_e"] = kkt_ub_lb(nlp.dual(constraint["e"][0]))
+    #    dual["lam_e"] = dual["kkt_e"]  # 1 /n+1
+    #    dual["kkt_f"] = kkt_ub_lb(nlp.dual(constraint["f"][0]))
+    #    dual["lam_f"] = -dual["kkt_f"]  # 1...n+1
+    #    if ocp.h is not None:
+    #        dual["kkt_h"] = kkt_ub_lb(nlp.dual(constraint["h"][0]))
+    #        dt = t[:, 1:] - t[:, 0:-1]
+    #        dual["lam_h"] = (dual["kkt_h"])[:, 0:-1] / cs.repmat(dt,dual['kkt_h'].shape[0],1)  # 0...n
+    #    else:
+    #        dual["kkt_h"] = None
+    #        dual["lam_h"] = None
+    #    if ocp.t0 is not None:
+    #        dual["kkt_t0"] = None
+    #    else:
+    #        dual["kkt_t0"] = kkt_ub_lb(nlp.dual(constraint["t0"][0]))
+    #    if ocp.t0 is not None:
+    #        dual["kkt_tf"] = None
+    #    else:
+    #        dual["tf"] = kkt_ub_lb(nlp.dual(constraint["tf"][0]))
+    #    dual["kkt_X"] = kkt_ub_lb(nlp.dual(constraint["X"][0]))
+    #    dual["kkt_U"] = kkt_ub_lb(nlp.dual(constraint["U"][0]))
 
     return dual
 
@@ -967,7 +1139,7 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: dict, name: str = "solution"):
     tvars = [tx, tu, tlam]
     X = sol.value(dis_ocp["X"]).reshape(dis_ocp["X"].shape)
     U = sol.value(dis_ocp["U"]).reshape(dis_ocp["U"].shape)
-    lam = sol.value(dis_ocp['dual']["lam_x"]).reshape(dis_ocp['dual']["lam_x"].shape)
+    lam = sol.value(dis_ocp["dual"]["lam_f"]).reshape(dis_ocp["dual"]["lam_f"].shape)
 
     with PdfPages(f"{name}.pdf") as pdf:
         for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam], tvars):
@@ -984,6 +1156,7 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
     zoh = make_interp_spline(t, U, k=0, axis=axis)
     return zoh
 
+
 def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
     if X.ndim == 2:
         axis = 1
@@ -997,8 +1170,8 @@ def check_feasibility(
     ocp: Ocp, dis_ocp: dict, sol: cs.OptiSol, name: str = "feasibility"
 ):
 
-    X = sol.value(dis_ocp["X"]).reshape(ocp.nx,-1)
-    U = sol.value(dis_ocp["U"]).reshape(ocp.nu,-1)
+    X = sol.value(dis_ocp["X"]).reshape(ocp.nx, -1)
+    U = sol.value(dis_ocp["U"]).reshape(ocp.nu, -1)
     tg = sol.value(dis_ocp["t"])
     x0 = X[:, 0]
     f = ocp.f
@@ -1010,7 +1183,7 @@ def check_feasibility(
 
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
     options = {"rtol": 1e-12, "atol": 1e-12}
-    ode_meth="Radau"
+    ode_meth = "Radau"
     ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, ode_meth, td, options)
     if ivp_sol.success is False:
         raise ValueError("Time marching failed")
@@ -1019,7 +1192,7 @@ def check_feasibility(
         for i in range(x0.size):
             plt.figure()
             if X.ndim == 1:
-                plt.plot(tg, X,label="NLP")
+                plt.plot(tg, X, label="NLP")
                 plt.plot(td, ivp_sol.y, label=ode_meth)
             else:
                 plt.plot(tg, X[i, :], "o", label="NLP")
@@ -1038,7 +1211,7 @@ def check_feasibility(
         Ud = zoh(td)
         for i in range(nu):
             if U.ndim == 1:
-                plt.plot(tg[0:-1], U, "o", label="NLP",markeredgecolor='black')
+                plt.plot(tg[0:-1], U, "o", label="NLP", markeredgecolor="black")
                 plt.plot(td, Ud, "--", label="ZOH")
             else:
                 plt.plot(tg[0:-1], U[i, :], "o", label="NLP")
@@ -1051,7 +1224,7 @@ def check_feasibility(
             plt.close()
 
 
-def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol,name:str='all'):
+def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
 
     with PdfPages(f"{name}.pdf") as pdf:
         for j in range(3):

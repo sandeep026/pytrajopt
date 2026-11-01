@@ -59,7 +59,7 @@ def cart_costate():
 
     nlp=cs.Opti()
 
-    dis_ocp = generate_NLP(ocp,nlp,disc,True)
+    dis_ocp = generate_NLP(ocp,nlp,disc,)
     nlp.solver("ipopt")
     nlp.set_initial(dis_ocp["t"], cs.linspace(0,2,disc.n+1).T)
     nlp.set_initial(dis_ocp["X"], cs.DM.ones( dis_ocp["X"].shape))
@@ -69,9 +69,9 @@ def cart_costate():
 
     t = np.linspace(0, 2, disc_data["n"] + 1)[1:]
     out = [
-        sol.value(dis_ocp['dual']["lam_x"])[0, :],
+        sol.value(dis_ocp['dual']["lam_f"])[0, :],
         np.ones(disc_data["n"] ),
-        sol.value(dis_ocp['dual']["lam_x"])[1, :],
+        sol.value(dis_ocp['dual']["lam_f"])[1, :],
         1 - 0.5 * np.exp(np.linspace(0, 2, disc_data["n"] )),
     ]
     labels = [

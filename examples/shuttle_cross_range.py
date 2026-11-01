@@ -81,12 +81,12 @@ def shuttle_max_crossrange():
 
     disc_data={}
     disc_data["n"] = 40
-    disc_data['method'] = casadi_integrator(
+    disc_data['method'] =     casadi_integrator(
         plugin="collocation",
         plugin_options={
-            "interpolation_order": 4,
+            "interpolation_order": 3,
             "collocation_scheme": "radau",
-            "rootfinder": 'newton',
+            "rootfinder": 'kinsol',
             "number_of_finite_elements": 1,
             "simplify": True,
             'error_on_fail':False
@@ -99,7 +99,8 @@ def shuttle_max_crossrange():
     disc=disc_opt(**disc_data)
 
     #state bounds
-    ocp_data['x_lb']=cs.DM([0,-89*deg2rad,1,-89*deg2rad,-cs.DM.inf()])
+    eps=1e-8
+    ocp_data['x_lb']=cs.DM([eps,-89*deg2rad,1,-89*deg2rad,-cs.DM.inf()])
     ocp_data['x_ub']=cs.DM([cs.DM.inf(),89*deg2rad,cs.DM.inf(),89*deg2rad,cs.DM.inf()])
 
     # Control bounds
@@ -131,13 +132,14 @@ def shuttle_max_crossrange():
             cs.linspace(0.0, 0.5,                       disc.n + 1).T,
             cs.linspace(25600.0, 2500.0,                disc.n + 1).T,
             cs.linspace(-1.0 * deg2rad, -5.0 * deg2rad, disc.n + 1).T,
-            cs.linspace(90.0 * deg2rad, 0.0,            disc.n + 1).T,
+            cs.linspace(85.0 * deg2rad, 0.0,            disc.n + 1).T,
         ]
     )
+    Ug=cs.vcat([cs.linspace(0.3,0.3,disc.n).T,cs.linspace(-1,0,disc.n).T])
 
     nlp.set_initial(dis_ocp["t"], cs.linspace(0,2000,disc.n+1).T)
     nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
+    nlp.set_initial(dis_ocp["U"], Ug)
     nlp.set_initial(dis_ocp["tf"], 2000.0)
     
     sol = nlp.solve()
