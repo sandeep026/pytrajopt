@@ -45,7 +45,7 @@ def brach():
     ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
 
     disc_data={}
-    disc_data['method'] = 'exp_mid'
+    disc_data['method'] = 'rk4'
     #casadi_integrator(
     #    plugin="collocation",
     #    plugin_options={

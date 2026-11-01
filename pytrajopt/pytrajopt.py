@@ -1114,16 +1114,15 @@ def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     for i in range(var.shape[0]):
-        plt.figure()
 
+        if np.isnan(var).all():
+            print("Costate estimation not implemented for bw_euler, trap and her_sim. Use fw_euler or exp_mid or rk4")
+            continue
+
+        plt.figure()
         if name == "u":
             plt.step(t.ravel(), var[i, :].ravel())
         else:
-            if np.isnan(var).all():
-                print(
-                    "Costate estimation not implemented for bw_euler, trap and her_sim. User fw_euler or exp_mid"
-                )
-
             plt.plot(t.ravel(), var[i, :].ravel())
         plt.ylabel(rf"${name}_{i}$")
         plt.xlabel("time [s]")
