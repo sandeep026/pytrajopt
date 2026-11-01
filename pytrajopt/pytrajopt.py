@@ -1113,23 +1113,22 @@ def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
 
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
+    fig,ax=plt.subplots()
     for i in range(var.shape[0]):
-
+        ax.clear()
         if np.isnan(var).all():
             print("Costate estimation not implemented for bw_euler, trap and her_sim. Use fw_euler or exp_mid or rk4")
             continue
 
-        plt.figure()
         if name == "u":
-            plt.step(t.ravel(), var[i, :].ravel())
+            ax.step(t.ravel(), var[i, :].ravel())
         else:
-            plt.plot(t.ravel(), var[i, :].ravel())
-        plt.ylabel(rf"${name}_{i}$")
-        plt.xlabel("time [s]")
-        plt.grid(True)
-        pdf.savefig(bbox_inches="tight")
-        plt.close()
-
+            ax.plot(t.ravel(), var[i, :].ravel())
+        ax.set_ylabel(rf"${name}_{i}$")
+        ax.set_xlabel("time [s]")
+        ax.grid(True)
+        pdf.savefig(fig,bbox_inches="tight")
+    plt.close()
 
 def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
     tx = sol.value(dis_ocp.t)
