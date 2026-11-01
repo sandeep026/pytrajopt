@@ -100,10 +100,10 @@ def low_thrust():
             cs.linspace(1, 0.5, disc.n + 1).T,
         ]
     )
-    nlp.set_initial(dis_ocp["t"], cs.linspace(0, 50, disc.n + 1).T)
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
-    nlp.set_initial(dis_ocp["tf"], 46)
+    nlp.set_initial(dis_ocp.t, cs.linspace(0, 50, disc.n + 1).T)
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, cs.DM.zeros(dis_ocp.U.shape))
+    nlp.set_initial(dis_ocp.tf, 46)
     sol = nlp.solve()
 
     plot_solution(sol, dis_ocp, "low_thrust_sol")

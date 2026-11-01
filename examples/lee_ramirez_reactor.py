@@ -105,9 +105,9 @@ def lee_ramirez_reactor():
     nlp.solver("ipopt")
     Xg = cs.repmat(cs.DM([1,0.1, 40,0,0,1,0]), 1, disc.n + 1)
     Ug = cs.vertcat(cs.linspace(0, 1, n).T,cs.linspace(1, 1, n).T)
-    nlp.set_initial(dis_ocp['t'],cs.linspace(0,10,disc.n+1).T)
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], Ug)
+    nlp.set_initial(dis_ocp.t,cs.linspace(0,10,disc.n+1).T)
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, Ug)
     sol = nlp.solve()
     # return {'Xg':sol.value(dis_ocp['X']),'Ug':sol.value(dis_ocp['U']),'dtg':cs.diff(ocp.t0+tau*(ocp.tf-ocp.t0))}
     plot_solution(sol, dis_ocp, "lee_ramirez_reactor_sol")

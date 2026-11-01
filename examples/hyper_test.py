@@ -78,9 +78,9 @@ def set_guess(nlp: cs.Opti, dis_ocp: dict, disc: disc_opt, aug: bool = False):
         tg = cs.linspace(0, 10000, disc.n + 1).T
         Xg = cs.vertcat(cs.linspace(1.5, 1, disc.n + 1).T)
         Ug = cs.vertcat(cs.linspace(1.5, 1, disc.n).T ** 3)
-        nlp.set_initial(dis_ocp["t"], tg)
-        nlp.set_initial(dis_ocp["X"], cs.vertcat(Xg))
-        nlp.set_initial(dis_ocp["U"], cs.vertcat(Ug))
+        nlp.set_initial(dis_ocp.t, tg)
+        nlp.set_initial(dis_ocp.X, cs.vertcat(Xg))
+        nlp.set_initial(dis_ocp.U, cs.vertcat(Ug))
     else:
         Xg = cs.vertcat(
             cs.linspace(1, 1.5, disc.n + 1).T, cs.linspace(0, 10000, disc.n + 1).T
@@ -88,8 +88,8 @@ def set_guess(nlp: cs.Opti, dis_ocp: dict, disc: disc_opt, aug: bool = False):
         Ug = cs.vertcat(
             cs.linspace(1, 1.5, disc.n).T ** 3-0.5/(10000), cs.linspace(10000, 10000, disc.n).T
         )
-        nlp.set_initial(dis_ocp["X"], cs.vertcat(Xg))
-        nlp.set_initial(dis_ocp["U"], cs.vertcat(Ug))
+        nlp.set_initial(dis_ocp.X, cs.vertcat(Xg))
+        nlp.set_initial(dis_ocp.U, cs.vertcat(Ug))
 
 
 def solve():

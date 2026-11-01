@@ -877,8 +877,8 @@ def generate_NLP(
     else:
         duals = get_costate(ocp, nlp, constraint, t)
         dis_ocp.update({"dual": duals})
-    DisOcp(**dis_ocp)
-    return dis_ocp
+    
+    return DisOcp(**dis_ocp)
 
 
 class DisOcp(BaseModel):
@@ -1132,14 +1132,14 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
         plt.close()
 
 
-def plot_solution(sol: cs.OptiSol, dis_ocp: dict, name: str = "solution"):
-    tx = sol.value(dis_ocp["t"])
+def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
+    tx = sol.value(dis_ocp.t)
     tu = tx[0:-1]
     tlam = tx[1:]
     tvars = [tx, tu, tlam]
-    X = sol.value(dis_ocp["X"]).reshape(dis_ocp["X"].shape)
-    U = sol.value(dis_ocp["U"]).reshape(dis_ocp["U"].shape)
-    lam = sol.value(dis_ocp["dual"]["lam_f"]).reshape(dis_ocp["dual"]["lam_f"].shape)
+    X = sol.value(dis_ocp.X).reshape(dis_ocp.X.shape)
+    U = sol.value(dis_ocp.U).reshape(dis_ocp.U.shape)
+    lam = sol.value(dis_ocp.dual["lam_f"]).reshape(dis_ocp.dual["lam_f"].shape)
 
     with PdfPages(f"{name}.pdf") as pdf:
         for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam], tvars):
@@ -1167,12 +1167,12 @@ def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
 
 
 def check_feasibility(
-    ocp: Ocp, dis_ocp: dict, sol: cs.OptiSol, name: str = "feasibility"
+    ocp: Ocp, dis_ocp: DisOcp, sol: cs.OptiSol, name: str = "feasibility"
 ):
 
-    X = sol.value(dis_ocp["X"]).reshape(ocp.nx, -1)
-    U = sol.value(dis_ocp["U"]).reshape(ocp.nu, -1)
-    tg = sol.value(dis_ocp["t"])
+    X = sol.value(dis_ocp.X).reshape(ocp.nx, -1)
+    U = sol.value(dis_ocp.U).reshape(ocp.nu, -1)
+    tg = sol.value(dis_ocp.t)
     x0 = X[:, 0]
     f = ocp.f
 
@@ -1230,8 +1230,8 @@ def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
         for j in range(3):
             plt.figure()
             for i, dis_ocp in enumerate(dis_ocps):
-                t = sol.value(dis_ocp["t"]).ravel()
-                X = sol.value(dis_ocp["X"])
+                t = sol.value(dis_ocp.t).ravel()
+                X = sol.value(dis_ocp.X)
                 if X.ndim == 1:
                     plt.plot(t, X, label=f"phase {i}")
                 else:
@@ -1246,8 +1246,8 @@ def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
         for j in range(1):
             plt.figure()
             for i, dis_ocp in enumerate(dis_ocps):
-                t = sol.value(dis_ocp["t"])
-                U = sol.value(dis_ocp["U"])
+                t = sol.value(dis_ocp.t)
+                U = sol.value(dis_ocp.U)
                 zoh = pc_interp(t, U)
                 zoh = zoh(t)
                 if zoh.ndim == 1:

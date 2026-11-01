@@ -61,8 +61,8 @@ def ally():
     nlp.solver("ipopt")
     Xg = cs.repmat(cs.DM([0,1,0]), 1, disc.n + 1)
     Ug = cs.vertcat(cs.linspace(-1, 1, n).T)
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], Ug)
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, Ug)
     sol = nlp.solve()
     # return {'Xg':sol.value(dis_ocp['X']),'Ug':sol.value(dis_ocp['U']),'dtg':cs.diff(ocp.t0+tau*(ocp.tf-ocp.t0))}
     plot_solution(sol, dis_ocp, "ally_chen_sol")

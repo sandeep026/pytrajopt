@@ -137,10 +137,10 @@ def shuttle_max_crossrange():
     )
     Ug=cs.vcat([cs.linspace(0.3,0.3,disc.n).T,cs.linspace(-1,0,disc.n).T])
 
-    nlp.set_initial(dis_ocp["t"], cs.linspace(0,2000,disc.n+1).T)
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], Ug)
-    nlp.set_initial(dis_ocp["tf"], 2000.0)
+    nlp.set_initial(dis_ocp.t, cs.linspace(0,2000,disc.n+1).T)
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, Ug)
+    nlp.set_initial(dis_ocp.tf, 2000.0)
     
     sol = nlp.solve()
     plot_solution(sol, dis_ocp,'shuttle_cross_range_sol')

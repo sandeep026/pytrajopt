@@ -92,8 +92,8 @@ def rocket():
         ]
     )
 
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], cs.DM.zeros(dis_ocp["U"].shape))
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, cs.DM.zeros(dis_ocp.U.shape))
     sol = nlp.solve()
     plot_solution(sol, dis_ocp,'rocket_sol')
     check_feasibility(ocp,dis_ocp,sol,'rocket_feas')

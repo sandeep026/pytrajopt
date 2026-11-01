@@ -131,9 +131,9 @@ def ffrb():
         [cs.linspace(0.1, 0.9, disc.n).T for i in range(ocp.nu)]
     )
 
-    nlp.set_initial(dis_ocp['t'],cs.linspace(0,12,disc.n+1).T)
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], Ug)
+    nlp.set_initial(dis_ocp.t,cs.linspace(0,12,disc.n+1).T)
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, Ug)
     nlp.solver(
         "ipopt",
         {"ipopt.linear_solver": 'spral'},

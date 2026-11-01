@@ -97,7 +97,7 @@ def solve_multiphase_ocp():
     ]
 
     # OCP Generation Loop
-    ocps, dis_ocps = [], []
+    ocps, dis_ocps,guesses = [], [],[]
     nlp = cs.Opti()
 
     for i, data in enumerate(phases_data):
@@ -133,18 +133,19 @@ def solve_multiphase_ocp():
 
         ocp = Ocp(**ocp_config)
         dis_ocp = generate_NLP(ocp, nlp,discs[i])
-
-        dis_ocp["X_guess"] = data["X_guess"](n)
-        dis_ocp["U_guess"] = data["U_guess"](n)
-        dis_ocp["t_guess"] = data["t_guess"]
+        guess={}
+        guess["X"] = data["X_guess"](n)
+        guess["U"] = data["U_guess"](n)
+        guess["t"] = data["t_guess"]
 
         ocps.append(ocp)
         dis_ocps.append(dis_ocp)
+        guesses.append(guess)
 
     #  Phase Linkages (Hard Knots)
     # Phase 0 -> Phase 1
-    tf0, xf0 = dis_ocps[0]["tf"], dis_ocps[0]["X"][:, -1]
-    t01, x01 = dis_ocps[1]["t0"], dis_ocps[1]["X"][:, 0]
+    tf0, xf0 = dis_ocps[0].tf, dis_ocps[0].X[:, -1]
+    t01, x01 = dis_ocps[1].t0, dis_ocps[1].X[:, 0]
     nlp.subject_to(tf0 - t01 == 0)
     nlp.subject_to(xf0[0] - x01[0] == 0)
     nlp.subject_to(xf0[1] - x01[1] == 0)
@@ -153,21 +154,21 @@ def solve_multiphase_ocp():
     nlp.subject_to(xf0[2] - x01[2] <= 0.3)
 
     # Phase 1 -> Phase 2
-    tf1, xf1 = dis_ocps[1]["tf"], dis_ocps[1]["X"][:, -1]
-    t02, x02 = dis_ocps[2]["t0"], dis_ocps[2]["X"][:, 0]
+    tf1, xf1 = dis_ocps[1].tf, dis_ocps[1].X[:, -1]
+    t02, x02 = dis_ocps[2].t0, dis_ocps[2].X[:, 0]
     nlp.subject_to(tf1 - t02 == 0)
     nlp.subject_to(xf1 - x02 == 0)
 
     nlp.solver("ipopt")
 
     for i, dis_ocp in enumerate(dis_ocps):
-        t0_g, tf_g = dis_ocp["t_guess"]
+        t0_g, tf_g = guesses[i]["t"]
         if t0_g is not None:
-            nlp.set_initial(dis_ocp["t0"], t0_g)
+            nlp.set_initial(dis_ocp.t0, t0_g)
         if tf_g is not None:
-            nlp.set_initial(dis_ocp["tf"], tf_g)
-        nlp.set_initial(dis_ocp["X"], dis_ocp["X_guess"])
-        nlp.set_initial(dis_ocp["U"], dis_ocp["U_guess"])
+            nlp.set_initial(dis_ocp.tf, tf_g)
+        nlp.set_initial(dis_ocp.X, guesses[i]["X"])
+        nlp.set_initial(dis_ocp.U, guesses[i]["U"])
 
     sol = nlp.solve()
 

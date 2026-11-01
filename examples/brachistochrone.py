@@ -93,9 +93,9 @@ def brach():
         ]
     )
 
-    nlp.set_initial(dis_ocp["X"], Xg)
-    nlp.set_initial(dis_ocp["U"], 1e2 * cs.DM.ones(dis_ocp["U"].shape))
-    nlp.set_initial(dis_ocp["tf"], 25)
+    nlp.set_initial(dis_ocp.X, Xg)
+    nlp.set_initial(dis_ocp.U, 1e2 * cs.DM.ones(dis_ocp.U.shape))
+    nlp.set_initial(dis_ocp.tf, 25)
     sol = nlp.solve()
     plot_solution(sol, dis_ocp,'brachistochrone_sol')
     check_feasibility(ocp, dis_ocp, sol,'brachistochrone_feas')
