@@ -90,7 +90,7 @@ def lee_ramirez_reactor():
     ocp = Ocp(**ocp_data)
     nlp = cs.Opti()
 
-    method = 'rk4'f
+    method = 'rk4'
     #casadi_integrator(
     #    plugin="rk",
     #    plugin_options={"number_of_finite_elements": 1, "simplify": True},
