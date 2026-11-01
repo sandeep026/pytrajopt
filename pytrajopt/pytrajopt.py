@@ -1179,28 +1179,35 @@ def check_feasibility(
     def f_solve_ivp(t, x):
         return f(t, x, zoh(t)).full().flatten()
 
+    def f_solve_ivp_jac(t, x):
+        return f.jacobian()(t, x, zoh(t),0)[1].full().reshape(ocp.nx,ocp.nx)
+
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
     options = {"rtol": 1e-12, "atol": 1e-12}
     ode_meth = "Radau"
-    ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, ode_meth, td, options)
+    ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, ode_meth, td, options,jac=f_solve_ivp_jac)
+
     if ivp_sol.success is False:
         raise ValueError("Time marching failed")
 
+    fig,ax=plt.subplots()
+
     with PdfPages(f"{name}.pdf") as pdf:
         for i in range(x0.size):
-            plt.figure()
+            ax.clear()
+#            plt.figure()
             if X.ndim == 1:
-                plt.plot(tg, X, label="NLP")
-                plt.plot(td, ivp_sol.y, label=ode_meth)
+                ax.plot(tg, X, label="NLP")
+                ax.plot(td, ivp_sol.y, label=ode_meth+' IIA (time-marched)')
             else:
-                plt.plot(tg, X[i, :], "o", label="NLP")
-                plt.plot(td, ivp_sol.y[i, :], "--", label=ode_meth)
-            plt.xlabel("time [s]")
-            plt.ylabel(rf"$x_{i}$")
-            plt.grid(True)
-            plt.legend()
-            pdf.savefig(bbox_inches="tight")
-            plt.close()
+                ax.plot(tg, X[i, :], "o", label="NLP")
+                ax.plot(td, ivp_sol.y[i, :], "--", label=ode_meth+ ' IIA (time-marched)')
+            ax.set_xlabel("time [s]")
+            ax.set_ylabel(rf"$x_{i}$")
+            ax.grid(True)
+            ax.legend()
+            pdf.savefig(fig,bbox_inches="tight")
+        plt.close()
 
         if U.ndim == 1:
             nu = 1
