@@ -5,7 +5,9 @@ from pytrajopt import (
     check_feasibility,
     generate_NLP,
     plot_solution,
-    disc_opt
+    disc_opt,
+    Syms,
+    LinGuess
 )
 
 
@@ -13,16 +15,11 @@ def brach():
     ocp_data = {}
     ocp_data["nx"] = 3
     ocp_data["nu"] = 1
-    # event and Mayer
-    t0s = cs.SX.sym("t0s")
-    tfs = cs.SX.sym("tfs")
-    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-
-    # Lagrange dynamics and path
-    ts = cs.SX.sym("ts")
-    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-    us = cs.SX.sym("us", ocp_data["nu"], 1)
+    syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
+    t0s,tfs,x0s,xfs=syms.get_event()
+    ts,xs,us=syms.get_path()
+    event=syms.get_event()    
+    path=syms.get_path()
 
     # initial and final time
     ocp_data["t0"] = cs.DM(0)
@@ -30,19 +27,19 @@ def brach():
 
     # lagrange and mayer objective
     ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [tfs])
+    ocp_data["E"] = cs.Function("E", event, [tfs])
 
     # event constraints
     e = cs.vertcat(x0s - cs.DM([0, 0, 0]), xfs[0:2, :] - cs.DM([1e3, 1]))
 
-    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
+    ocp_data["e"] = cs.Function("e", event, [e])
     ocp_data["e_lb"] = cs.vcat([0] * 5)
     ocp_data["e_ub"] = cs.vcat([0] * 5)
 
     # dynamics
     g = 9.8
     f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
-    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
+    ocp_data["f"] = cs.Function("fss", path, [f])
 
     disc_data={}
     disc_data['method'] = 'rk4'
@@ -85,17 +82,16 @@ def brach():
     dis_ocp = generate_NLP(ocp, nlp,disc)
     nlp.solver("ipopt")
 
-    Xg = cs.vcat(
-        [
-            cs.linspace(1, 1e3, disc.n + 1).T,
-            cs.linspace(1, 1e2, disc.n + 1).T,
-            cs.linspace(1, 3e2, disc.n + 1).T,
-        ]
-    )
-
-    nlp.set_initial(dis_ocp.X, Xg)
-    nlp.set_initial(dis_ocp.U, 1e2 * cs.DM.ones(dis_ocp.U.shape))
-    nlp.set_initial(dis_ocp.tf, 25)
+    guess_data = {
+        "n": disc.n,
+        "xl": [1, 1, 1],
+        "xr": [1e3,1e2,3e2],
+        "ul": [1e2],
+        "ur": [1e2],
+        "tr": 25,
+    }
+    guess=LinGuess(**guess_data)
+    guess.set_guess(dis_ocp,nlp)
     sol = nlp.solve()
     plot_solution(sol, dis_ocp,'brachistochrone_sol')
     check_feasibility(ocp, dis_ocp, sol,'brachistochrone_feas')

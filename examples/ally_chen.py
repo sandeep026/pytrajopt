@@ -7,6 +7,8 @@ from pytrajopt import (
     disc_opt,
     generate_NLP,
     plot_solution,
+    Syms,
+    LinGuess
 )
 
 
@@ -14,15 +16,11 @@ def ally():
     ocp_data = {}
     ocp_data["nx"] = 3
     ocp_data["nu"] = 1
-    ts = cs.SX.sym("ts", 1, 1)
-    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-    us = cs.SX.sym("us", ocp_data["nu"], 1)
-    t0s = cs.SX.sym("t0s", 1, 1)
-    tfs = cs.SX.sym("tfs", 1, 1)
-    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-    path = [ts, xs, us]
-    event = [t0s, tfs, x0s, xfs]
+    syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
+    t0s,tfs,x0s,xfs=syms.get_event()
+    ts,xs,us=syms.get_path()
+    event=syms.get_event()    
+    path=syms.get_path()
     ocp_data["L"] = None
     ocp_data["E"] = cs.Function("E", event, [xfs[2]])
     ocp_data["e"] = cs.Function(
@@ -59,12 +57,18 @@ def ally():
     disc = disc_opt(n=n, method=method)
     dis_ocp = generate_NLP(ocp, nlp, disc)
     nlp.solver("ipopt")
-    Xg = cs.repmat(cs.DM([0,1,0]), 1, disc.n + 1)
-    Ug = cs.vertcat(cs.linspace(-1, 1, n).T)
-    nlp.set_initial(dis_ocp.X, Xg)
-    nlp.set_initial(dis_ocp.U, Ug)
+
+    guess_data = {
+        "n": disc.n,
+        "xl": [0, 1, 0],
+        "xr": [0, 1, 0],
+        "ul": [-1],
+        "ur": [1],
+    }
+    guess=LinGuess(**guess_data)
+    guess.set_guess(dis_ocp,nlp)
+    
     sol = nlp.solve()
-    # return {'Xg':sol.value(dis_ocp['X']),'Ug':sol.value(dis_ocp['U']),'dtg':cs.diff(ocp.t0+tau*(ocp.tf-ocp.t0))}
     plot_solution(sol, dis_ocp, "ally_chen_sol")
     check_feasibility(ocp, dis_ocp, sol, "ally_chen_feas")
 

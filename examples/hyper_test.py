@@ -3,6 +3,7 @@ import numpy as np
 
 from pytrajopt import (
     Ocp,
+    Syms,
     casadi_integrator,
     check_feasibility,
     disc_opt,
@@ -10,21 +11,18 @@ from pytrajopt import (
     plot_solution,
 )
 
+# time dilation vs variable mesh
 
 def get_ocp(aug: bool):
     if not aug:
         ocp_data = {}
         ocp_data["nx"] = 1
         ocp_data["nu"] = 1
-        ts = cs.SX.sym("ts", 1, 1)
-        xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-        us = cs.SX.sym("us", ocp_data["nu"], 1)
-        t0s = cs.SX.sym("t0s", 1, 1)
-        tfs = cs.SX.sym("tfs", 1, 1)
-        x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-        xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-        path = [ts, xs, us]
-        event = [t0s, tfs, x0s, xfs]
+        syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
+        t0s, tfs, x0s, xfs = syms.get_event()
+        ts, xs, us = syms.get_path()
+        event = syms.get_event()
+        path = syms.get_path()
         ocp_data["L"] = cs.Function("L", path, [0.5 * (xs**2 + us**2)])
         ocp_data["E"] = None
         ocp_data["e"] = cs.Function(
@@ -34,7 +32,7 @@ def get_ocp(aug: bool):
         ocp_data["e_ub"] = cs.DM([0] * 2)
         ocp_data["t0"] = cs.DM(0)
         ocp_data["tf"] = cs.DM(10000)
-        ocp_data["f"] = cs.Function("f", path, [-(xs)**3 + us])
+        ocp_data["f"] = cs.Function("f", path, [-((xs) ** 3) + us])
         ocp = Ocp(**ocp_data)
         path = [ts, xs, us]
         return ocp, path
@@ -63,7 +61,7 @@ def get_ocp(aug: bool):
         ocp_data["t0"] = cs.DM(0)
         ocp_data["tf"] = cs.DM(1)
         ocp_data["f"] = cs.Function(
-            "f", path, [cs.vertcat((-(xs[0])**3 + us[0]) * us[1], us[1])]
+            "f", path, [cs.vertcat((-((xs[0]) ** 3) + us[0]) * us[1], us[1])]
         )
         inf = cs.DM.inf()
         ocp_data["u_lb"] = cs.DM([-inf, 1e-8])
@@ -86,7 +84,8 @@ def set_guess(nlp: cs.Opti, dis_ocp: dict, disc: disc_opt, aug: bool = False):
             cs.linspace(1, 1.5, disc.n + 1).T, cs.linspace(0, 10000, disc.n + 1).T
         )
         Ug = cs.vertcat(
-            cs.linspace(1, 1.5, disc.n).T ** 3-0.5/(10000), cs.linspace(10000, 10000, disc.n).T
+            cs.linspace(1, 1.5, disc.n).T ** 3 - 0.5 / (10000),
+            cs.linspace(10000, 10000, disc.n).T,
         )
         nlp.set_initial(dis_ocp.X, cs.vertcat(Xg))
         nlp.set_initial(dis_ocp.U, cs.vertcat(Ug))
@@ -96,15 +95,15 @@ def solve():
     aug = True
     ocp, path = get_ocp(aug)
     nlp = cs.Opti()
-    method = 'her_sim'
-    #casadi_integrator(
+    method = "her_sim"
+    # casadi_integrator(
     #    plugin="collocation",
     #    plugin_options={"collocation_scheme": "legendre", "interpolation_order": 1,'number_of_finite_elements':1},
     #    nx=ocp.nx,
     #    nu=ocp.nu,
     #    path=path,
     #    f=ocp.f(*path),
-    #)
+    # )
     n = 200
     disc = disc_opt(n=n, method=method)
     from pytrajopt import DynamicMesh
@@ -114,7 +113,7 @@ def solve():
     else:
         mesh = DynamicMesh(k1=0.001, k2=10000000)
     dis_ocp = generate_NLP(ocp, nlp, disc, mesh)
-    nlp.solver("ipopt",{'ipopt.tol':1e-7})
+    nlp.solver("ipopt", {"ipopt.tol": 1e-7})
     set_guess(nlp, dis_ocp, disc, aug)
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "hyper_sol")

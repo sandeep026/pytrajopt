@@ -22,6 +22,33 @@ STYLE_PATH = CURRENT_DIR / "pub_qual.mplstyle"
 plt.style.use(STYLE_PATH)
 
 
+class Syms(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    nx: PositiveInt
+    nu: PositiveInt
+    _event: list[cs.SX] = PrivateAttr(default_factory=list)
+    _path: list[cs.SX] = PrivateAttr(default_factory=list)
+
+    @model_validator(mode="after")
+    def create_syms(self) -> "Syms":
+        ts = cs.SX.sym("ts", 1, 1)
+        xs = cs.SX.sym("xs", self.nx, 1)
+        us = cs.SX.sym("us", self.nu, 1)
+        t0s = cs.SX.sym("t0s", 1, 1)
+        tfs = cs.SX.sym("tfs", 1, 1)
+        x0s = cs.SX.sym("x0s", self.nx, 1)
+        xfs = cs.SX.sym("xfs", self.nx, 1)
+        self._path = [ts, xs, us]
+        self._event = [t0s, tfs, x0s, xfs]
+        return self
+
+    def get_path(self) -> list[cs.SX]:
+        return self._path
+
+    def get_event(self) -> list[cs.SX]:
+        return self._event
+
+
 class casadi_integrator(BaseModel):
     # provides access to casadi integrators
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
@@ -877,7 +904,7 @@ def generate_NLP(
     else:
         duals = get_costate(ocp, nlp, constraint, t)
         dis_ocp.update({"dual": duals})
-    
+
     return DisOcp(**dis_ocp)
 
 
@@ -952,7 +979,7 @@ class DisOcp(BaseModel):
             "dt": (1, self.n + 1),
         }
         if self.nh is not None:
-            shapes.update({'h':(self.nh,self.n+1)})
+            shapes.update({"h": (self.nh, self.n + 1)})
         for name, dual in self.dual.items():
             if "kkt" in name:
                 self.check_shape(
@@ -1113,11 +1140,13 @@ def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
 
 
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
-    fig,ax=plt.subplots()
+    fig, ax = plt.subplots()
     for i in range(var.shape[0]):
         ax.clear()
         if np.isnan(var).all():
-            print("Costate estimation not implemented for bw_euler, trap and her_sim. Use fw_euler or exp_mid or rk4")
+            print(
+                "Costate estimation not implemented for bw_euler, trap and her_sim. Use fw_euler or exp_mid or rk4"
+            )
             continue
 
         if name == "u":
@@ -1127,8 +1156,9 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
         ax.set_ylabel(rf"${name}_{i}$")
         ax.set_xlabel("time [s]")
         ax.grid(True)
-        pdf.savefig(fig,bbox_inches="tight")
+        pdf.savefig(fig, bbox_inches="tight")
     plt.close()
+
 
 def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
     tx = sol.value(dis_ocp.t)
@@ -1180,33 +1210,37 @@ def check_feasibility(
         return f(t, x, zoh(t)).full().flatten()
 
     def f_solve_ivp_jac(t, x):
-        return f.jacobian()(t, x, zoh(t),0)[1].full().reshape(ocp.nx,ocp.nx)
+        return f.jacobian()(t, x, zoh(t), 0)[1].full().reshape(ocp.nx, ocp.nx)
 
     td = np.linspace(tg[0], tg[-1], len(tg) * 10)
     options = {"rtol": 1e-12, "atol": 1e-12}
     ode_meth = "Radau"
-    ivp_sol = solve_ivp(f_solve_ivp, [tg[0], tg[-1]], x0, ode_meth, td, options,jac=f_solve_ivp_jac)
+    ivp_sol = solve_ivp(
+        f_solve_ivp, [tg[0], tg[-1]], x0, ode_meth, td, options, jac=f_solve_ivp_jac
+    )
 
     if ivp_sol.success is False:
         raise ValueError("Time marching failed")
 
-    fig,ax=plt.subplots()
+    fig, ax = plt.subplots()
 
     with PdfPages(f"{name}.pdf") as pdf:
         for i in range(x0.size):
             ax.clear()
-#            plt.figure()
+            #            plt.figure()
             if X.ndim == 1:
                 ax.plot(tg, X, label="NLP")
-                ax.plot(td, ivp_sol.y, label=ode_meth+' IIA (time-marched)')
+                ax.plot(td, ivp_sol.y, label=ode_meth + " IIA (time-marched)")
             else:
                 ax.plot(tg, X[i, :], "o", label="NLP")
-                ax.plot(td, ivp_sol.y[i, :], "--", label=ode_meth+ ' IIA (time-marched)')
+                ax.plot(
+                    td, ivp_sol.y[i, :], "--", label=ode_meth + " IIA (time-marched)"
+                )
             ax.set_xlabel("time [s]")
             ax.set_ylabel(rf"$x_{i}$")
             ax.grid(True)
             ax.legend()
-            pdf.savefig(fig,bbox_inches="tight")
+            pdf.savefig(fig, bbox_inches="tight")
         plt.close()
 
         if U.ndim == 1:
@@ -1265,3 +1299,82 @@ def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
             plt.legend()
             pdf.savefig(bbox_inches="tight")
             plt.close()
+
+
+class LinGuess(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    n: PositiveInt
+    xl: list[float | int]
+    xr: list[float | int]
+    ul: list[float | int]
+    ur: list[float | int]
+    tl: float | int = Field(ge=0, default=0)
+    tr: float | int = Field(gt=0, default=1)
+    _Xg: cs.DM | None = PrivateAttr(default=None)
+    _Ug: cs.DM | None = PrivateAttr(default=None)
+    _tg: cs.DM | None = PrivateAttr(default=None)
+    _t0g: cs.DM | None = PrivateAttr(default=None)
+    _tfg: cs.DM | None = PrivateAttr(default=None)
+
+    @model_validator(mode="after")
+    def check(self) -> "LinGuess":
+
+        for name, limits in zip(
+            ["state", "control"], [(self.xl, self.xr), (self.ul, self.ur)]
+        ):
+            if len(limits[0]) != len(limits[1]):
+                raise ValueError(
+                    f"Number of elements mismatch for {name} end points. Received l={len(limits[0])} r={len(limits[1])}"
+                )
+
+        if self.tl < 0 or self.tr <= 0:
+            raise ValueError(
+                f"Guess for time cannot be negative (t0={self.tl},tf={self.tr}) "
+            )
+        if self.tr - self.tl <= 0:
+            raise ValueError(
+                f"Final time guess must be greater than initial time but received tr={self.tr}<= tl={self.tl}"
+            )
+
+        self._Xg = cs.vcat(
+            [cs.linspace(l, r, self.n + 1).T for l, r in zip(self.xl, self.xr)]
+        )
+        self._Ug = cs.vcat(
+            [cs.linspace(l, r, self.n).T for l, r in zip(self.ul, self.ur)]
+        )
+        self._t0g = cs.DM(self.tl)
+        self._tfg = cs.DM(self.tr)
+        self._tg = cs.linspace(self.tl, self.tr, self.n + 1).T
+        return self
+
+    def set_guess(self, dis_ocp: DisOcp, nlp: cs.Opti) -> None:
+        """
+        set guess to NLP
+
+        Parameters
+        ----------
+        dis_ocp : DisOcp
+            discrete OCP
+        nlp : cs.Opti
+            Opti
+        """
+
+        for name, att in zip(["state", "control"], ["X", "U"]):
+            if getattr(dis_ocp, att).shape != getattr(self, f"_{att}g").shape:
+                raise ValueError(
+                    f"Guess for the {name} matrix has incorrect dimension, expected {getattr(dis_ocp, att).shape} but received {getattr(self, f'_{att}g').shape}"
+                )
+
+        nlp.set_initial(dis_ocp.X, self._Xg)
+        nlp.set_initial(dis_ocp.U, self._Ug)
+
+        if not isinstance(dis_ocp.t,cs.DM) or not dis_ocp.t.is_constant():
+            for i in cs.symvar(dis_ocp.t):
+                if i.shape == (1, self.n + 1):
+                    nlp.set_initial(dis_ocp.t, self._tg)
+                    break
+                if i.shape == (1, 1):
+                    if cs.is_equal(dis_ocp.t0,i):
+                        nlp.set_initial(dis_ocp.t0, self._t0g)
+                    elif cs.is_equal(dis_ocp.tf,i):
+                        nlp.set_initial(dis_ocp.tf, self._tfg)

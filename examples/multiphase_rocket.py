@@ -8,26 +8,24 @@ from pytrajopt import (
     plot_solution,
     pc_interp,
     plot_solution_all_phase,
-    disc_opt
+    disc_opt,
+    Syms
 )
 
 
 def solve_multiphase_ocp():
     #  Common Physics & Shared Symbols
-    ts = cs.SX.sym("ts")
-    xs = cs.SX.sym("xs", 3, 1)
-    us = cs.SX.sym("us", 1, 1)
-
-    t0s = cs.SX.sym("t0s")
-    tfs = cs.SX.sym("tfs")
-    x0s = cs.SX.sym("x0s", 3, 1)
-    xfs = cs.SX.sym("xfs", 3, 1)
+    syms=Syms(nx=3,nu=1)
+    t0s,tfs,x0s,xfs=syms.get_event()
+    ts,xs,us=syms.get_path()
+    event=syms.get_event()    
+    path=syms.get_path()
 
     #  dynamics model
     mu, ve = 1.0, 0.5
     r, v, m = xs[0, :], xs[1, :], xs[2, :]
     f = cs.vertcat(v, -mu / (r.T @ r) + us / m, -us / ve)
-    f_func = cs.Function("f_shared", [ts, xs, us], [f])
+    f_func = cs.Function("f_shared", path, [f])
 
     method = 'her_sim'#casadi_integrator(plugin="cvodes", nx=3, nu=1, path=[ts, xs, us], f=f)
 
@@ -109,8 +107,8 @@ def solve_multiphase_ocp():
             "tf": None,
             "L": None,
             "f": f_func,
-            "E": cs.Function(f"E{i}", [t0s, tfs, x0s, xfs], [data["E"]]),
-            "e": cs.Function(f"e{i}", [t0s, tfs, x0s, xfs], [data["e"]]),
+            "E": cs.Function(f"E{i}", event, [data["E"]]),
+            "e": cs.Function(f"e{i}", event, [data["e"]]),
             "e_lb": cs.DM(data["e_bounds"][0]),
             "e_ub": cs.DM(data["e_bounds"][1]),
             "u_lb": cs.DM([data["u_bounds"][0]]),

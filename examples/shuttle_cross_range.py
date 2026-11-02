@@ -1,28 +1,23 @@
 import casadi as cs
-from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP, disc_opt, DynamicMesh
+from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP, disc_opt, DynamicMesh,Syms
 
 def shuttle_max_crossrange():
     ocp_data = {}
     ocp_data["nx"] = 5  
     ocp_data["nu"] = 2  
 
-    # Event and Mayer variables
-    t0s = cs.SX.sym("t0s")
-    tfs = cs.SX.sym("tfs")
-    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-
-    # Lagrange dynamics and path
-    ts = cs.SX.sym("ts")
-    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-    us = cs.SX.sym("us", ocp_data["nu"], 1)
+    syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
+    t0s,tfs,x0s,xfs=syms.get_event()
+    ts,xs,us=syms.get_path()
+    event=syms.get_event()    
+    path=syms.get_path()
 
     # Initial and final time
     ocp_data["t0"] = cs.DM(0)
     ocp_data["tf"] = None  
 
     ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [-xfs[1]])
+    ocp_data["E"] = cs.Function("E", event, [-xfs[1]])
 
     # Event constraints (Initial & Final conditions)
     deg2rad = cs.pi / 180.0
@@ -32,7 +27,7 @@ def shuttle_max_crossrange():
         xfs[2] - 2500.0,
         xfs[3] - (-5.0 * deg2rad)
     )
-    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
+    ocp_data["e"] = cs.Function("e", event, [e])
     ocp_data["e_lb"] = cs.vcat([0.0] * 8)
     ocp_data["e_ub"] = cs.vcat([0.0] * 8)
 
@@ -77,7 +72,7 @@ def shuttle_max_crossrange():
     d_psi = (1.0 / (mass * v * cs.cos(gamma))) * (L * cs.sin(beta)) + (v / r) * cs.cos(gamma) * cs.sin(psi) * cs.tan(theta)
 
     f = cs.vertcat(dh, d_theta, dv, d_gamma, d_psi)
-    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
+    ocp_data["f"] = cs.Function("fss", path, [f])
 
     disc_data={}
     disc_data["n"] = 40

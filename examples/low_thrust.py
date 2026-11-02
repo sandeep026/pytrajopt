@@ -8,6 +8,7 @@ from pytrajopt import (
     disc_opt,
     generate_NLP,
     plot_solution,
+    Syms
 )
 
 
@@ -16,16 +17,11 @@ def low_thrust():
     ocp_data["nx"] = 4
     ocp_data["nu"] = 2
 
-    # event and Mayer
-    t0s = cs.SX.sym("t0s")
-    tfs = cs.SX.sym("tfs")
-    x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-    xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-
-    # Lagrange dynamics and path
-    ts = cs.SX.sym("ts")
-    xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-    us = cs.SX.sym("us", ocp_data["nu"], 1)
+    syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
+    t0s,tfs,x0s,xfs=syms.get_event()
+    ts,xs,us=syms.get_path()
+    event=syms.get_event()    
+    path=syms.get_path()
 
     # initial and final time
     ocp_data["t0"] = cs.DM(0)
@@ -33,11 +29,11 @@ def low_thrust():
 
     # lagrange and mayer objective
     ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", [t0s, tfs, x0s, xfs], [tfs])
+    ocp_data["E"] = cs.Function("E", event, [tfs])
 
     # event constraints
     e = cs.vertcat(x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5]))
-    ocp_data["e"] = cs.Function("e", [t0s, tfs, x0s, xfs], [e])
+    ocp_data["e"] = cs.Function("e", event, [e])
     ocp_data["e_lb"] = cs.vcat([0] * 7)
     ocp_data["e_ub"] = cs.vcat([0] * 7)
 
@@ -50,7 +46,7 @@ def low_thrust():
             -xs[2, :] * xs[3, :] / xs[0, :] + us[1, :],
         ]
     )
-    ocp_data["f"] = cs.Function("fss", [ts, xs, us], [f])
+    ocp_data["f"] = cs.Function("fss", path, [f])
 
     disc_data = {}
     disc_data["n"] = 100
