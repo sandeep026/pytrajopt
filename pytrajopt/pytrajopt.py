@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+import scipy.sparse as sp
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
@@ -812,10 +813,17 @@ def generate_NLP(
         )
         nlp.subject_to(constraint["dynamics_mesh_dt"][0])
 
-    X = nlp.variable(nx, n + 1)
+    W = nlp.variable(nx + nu, n)
+    Xf = nlp.variable(nx, 1)
+    X = cs.horzcat(W[0:nx, :], Xf)
     nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
-    U = nlp.variable(nu, n)
+    U = W[nx:, :]
     nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, n), cs.repmat(ocp.u_o, 1, n))
+
+    # X = nlp.variable(nx, n + 1)
+    # nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
+    # U = nlp.variable(nu, n)
+    # nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, n), cs.repmat(ocp.u_o, 1, n))
     event_ip = (t[:, 0], t[:, -1], X[:, 0], X[:, -1])
     # objective
     if ocp.L is None:
@@ -1114,28 +1122,6 @@ def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
                 dt, dual[f"kkt_{name}"].shape[0], 1
             )
 
-    #    dual["kkt_e"] = kkt_ub_lb(nlp.dual(constraint["e"][0]))
-    #    dual["lam_e"] = dual["kkt_e"]  # 1 /n+1
-    #    dual["kkt_f"] = kkt_ub_lb(nlp.dual(constraint["f"][0]))
-    #    dual["lam_f"] = -dual["kkt_f"]  # 1...n+1
-    #    if ocp.h is not None:
-    #        dual["kkt_h"] = kkt_ub_lb(nlp.dual(constraint["h"][0]))
-    #        dt = t[:, 1:] - t[:, 0:-1]
-    #        dual["lam_h"] = (dual["kkt_h"])[:, 0:-1] / cs.repmat(dt,dual['kkt_h'].shape[0],1)  # 0...n
-    #    else:
-    #        dual["kkt_h"] = None
-    #        dual["lam_h"] = None
-    #    if ocp.t0 is not None:
-    #        dual["kkt_t0"] = None
-    #    else:
-    #        dual["kkt_t0"] = kkt_ub_lb(nlp.dual(constraint["t0"][0]))
-    #    if ocp.t0 is not None:
-    #        dual["kkt_tf"] = None
-    #    else:
-    #        dual["tf"] = kkt_ub_lb(nlp.dual(constraint["tf"][0]))
-    #    dual["kkt_X"] = kkt_ub_lb(nlp.dual(constraint["X"][0]))
-    #    dual["kkt_U"] = kkt_ub_lb(nlp.dual(constraint["U"][0]))
-
     return dual
 
 
@@ -1368,13 +1354,105 @@ class LinGuess(BaseModel):
         nlp.set_initial(dis_ocp.X, self._Xg)
         nlp.set_initial(dis_ocp.U, self._Ug)
 
-        if not isinstance(dis_ocp.t,cs.DM) or not dis_ocp.t.is_constant():
+        if not isinstance(dis_ocp.t, cs.DM) or not dis_ocp.t.is_constant():
             for i in cs.symvar(dis_ocp.t):
                 if i.shape == (1, self.n + 1):
                     nlp.set_initial(dis_ocp.t, self._tg)
                     break
                 if i.shape == (1, 1):
-                    if cs.is_equal(dis_ocp.t0,i):
+                    if cs.is_equal(dis_ocp.t0, i):
                         nlp.set_initial(dis_ocp.t0, self._t0g)
-                    elif cs.is_equal(dis_ocp.tf,i):
+                    elif cs.is_equal(dis_ocp.tf, i):
                         nlp.set_initial(dis_ocp.tf, self._tfg)
+
+
+class CusGuess(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    n: PositiveInt
+    Xg: cs.DM | None = None
+    Ug: cs.DM | None = None
+    tg: cs.DM | None = None
+    t0g: float | None = Field(ge=0, default=0)
+    tfg: float | None = Field(gt=0, default=1)
+
+    @model_validator(mode="after")
+    def check(self) -> "CusGuess":
+
+        if self.Xg.shape[1] != self.n + 1:
+            raise ValueError(
+                f"State guess matrix colums dont match. Expected {self.n + 1} but received {self.Xg.shape[1]}"
+            )
+
+        if self.Ug.shape[1] != self.n:
+            raise ValueError(
+                f"Control guess matrix colums dont match. Expected {self.n} but received {self.Ug.shape[1]}"
+            )
+
+        if self.tg.shape != (1, self.n + 1):
+            raise ValueError(
+                f'Time guess vector shape don"t match. Expected {(1, self.n + 1)} but received {self.tg.shape[1]}'
+            )
+
+        if self.tfg <= self.t0g:
+            raise ValueError(
+                f"Final time guess must be greater than initial time guess but received t0g ({self.t0g}) > tfg ({self.tfg}) "
+            )
+
+        return self
+
+    def set_guess(self, dis_ocp: DisOcp, nlp: cs.Opti) -> None:
+        """
+        set guess to NLP
+
+        Parameters
+        ----------
+        dis_ocp : DisOcp
+            discrete OCP
+        nlp : cs.Opti
+            Opti
+        """
+
+        for name, att in zip(["state", "control"], ["X", "U"]):
+            if getattr(dis_ocp, att).shape != getattr(self, f"{att}g").shape:
+                raise ValueError(
+                    f"Guess for the {name} matrix has incorrect row dimension, expected {getattr(dis_ocp, att).shape} but received {getattr(self, f'{att}g').shape}"
+                )
+
+        nlp.set_initial(dis_ocp.X, self.Xg)
+        nlp.set_initial(dis_ocp.U, self.Ug)
+
+        if not isinstance(dis_ocp.t, cs.DM) or not dis_ocp.t.is_constant():
+            for i in cs.symvar(dis_ocp.t):
+                if i.shape == (1, self.n + 1):
+                    nlp.set_initial(dis_ocp.t, self.tg)
+                    break
+                if i.shape == (1, 1):
+                    if cs.is_equal(dis_ocp.t0, i):
+                        nlp.set_initial(dis_ocp.t0, self.t0g)
+                    elif cs.is_equal(dis_ocp.tf, i):
+                        nlp.set_initial(dis_ocp.tf, self.tfg)
+
+
+def plot_sparsity(nlp: cs.Opti, filename: str = "sparsity",raster_threshold:int=50000):
+    x = nlp.x
+    f = nlp.f
+    g = nlp.g
+    lam = nlp.lam_g
+    L = f + cs.dot(lam, g)
+    J = cs.jacobian(g, x)
+    H = cs.hessian(L, x)[0]
+    fig, ax = plt.subplots(figsize=(6, 6))
+    with PdfPages(f"{filename}.pdf") as pdf:
+        for name, mat in zip(["Jacobian", "Hessian"], [J, H]):
+            ax.clear()
+            rows, cols = mat.sparsity().get_triplet()
+            S = sp.coo_matrix(
+                (np.ones(len(rows), dtype=np.uint8), (rows, cols)), shape=mat.shape
+            )
+
+            use_raster = mat.nnz() > raster_threshold
+            ax.spy(S, marker=".", markersize=1, rasterized=use_raster)
+            ax.set_aspect('equal')
+            ax.set_title(name)
+            pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)

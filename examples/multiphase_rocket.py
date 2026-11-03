@@ -1,177 +1,255 @@
 import casadi as cs
 import numpy as np
+
 from pytrajopt import (
     Ocp,
+    Syms,
     casadi_integrator,
     check_feasibility,
-    generate_NLP,
-    plot_solution,
-    pc_interp,
-    plot_solution_all_phase,
     disc_opt,
-    Syms
+    generate_NLP,
+    pc_interp,
+    plot_solution,
+    plot_solution_all_phase,
+    LinGuess,
+    plot_sparsity
 )
 
+def meta():    
+    data=r"Ross, I. Michael, and Fariba Fahroo. Pseudospectral Knotting Methods " \
+    "for Solving Nonsmooth Optimal Control Problems. Journal of Guidance, Control, " \
+    "and Dynamics, vol. 27, no. 3, May 2004, pp. 397–405. DOI.org (Crossref), " \
+    "https://doi.org/10.2514/1.3426."
+    return data
 
-def solve_multiphase_ocp():
-    #  Common Physics & Shared Symbols
-    syms=Syms(nx=3,nu=1)
-    t0s,tfs,x0s,xfs=syms.get_event()
-    ts,xs,us=syms.get_path()
-    event=syms.get_event()    
-    path=syms.get_path()
+def get_times(id):
+    if id == 0:
+        t0, tf = 0, None
+        return {"t0": t0, "tf": tf}
+    elif id in [1,2]:
+        t0, tf = None, None
+        return {"t0": t0, "tf": tf}
+    else:
+        raise ValueError("Incorrect ID")
 
-    #  dynamics model
-    mu, ve = 1.0, 0.5
-    r, v, m = xs[0, :], xs[1, :], xs[2, :]
-    f = cs.vertcat(v, -mu / (r.T @ r) + us / m, -us / ve)
-    f_func = cs.Function("f_shared", path, [f])
 
-    method = 'her_sim'#casadi_integrator(plugin="cvodes", nx=3, nu=1, path=[ts, xs, us], f=f)
+def get_lagrange(nx, nu, id):
+    if id in [0, 1, 2]:
+        return {"L": None}
+    else:
+        raise ValueError("Incorrect ID")
 
-    discs=[]
-    for n in [30,100,30]:
-        disc_data={}
-        disc_data['n']=n
-        disc_data['method']=method
-        discs.append(disc_opt(**disc_data))
 
-    #  Phase Definitions
-    phases_data = [
-        {
-            "t0": cs.DM(0),
-            "tf_bounds": (1e-6, 100.0), 
-            "u_bounds": (1.167, 1.167),
-            "x_bounds": (
-                [0.0, 0.0, 0.0],
-                [2.0, 2.0, 2.0],
-            ),  
-            "E": cs.DM(0),
-            "e": x0s - cs.DM([1.0, 0.0, 1.0]),
-            "e_bounds": ([0.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
-            "e_scale": [1.0, 1.0, 1.0],
-            "t_guess": (None, 0.08),
-            "X_guess": lambda n: cs.vertcat(
-                cs.linspace(1.0, 1.002, n + 1).T,
-                cs.linspace(0.0, 0.02,  n + 1).T,
-                cs.linspace(1.0, 0.8,   n + 1).T,
-            ),
-            "U_guess": lambda n: cs.DM.ones(1, n).T * 1.167,
-        },
-        {
-            "t0": None,
-            "tf_bounds": (None, None), 
-            "u_bounds": (0.0, 0.875),
-            "x_bounds": ([0.0, 0.0, 0.0], [2.0, 2.0, 2.0]),
-            "E": cs.DM(0),
-            "e": tfs - t0s,
-            "e_bounds": ([1e-6], [100.0]), 
-            "e_scale": [1.0],
-            "t_guess": (0.08, 0.20),
-            "X_guess": lambda n: cs.vertcat(
-                cs.linspace(1.002, 1.01, n + 1).T,
-                cs.linspace(0.02, 0.08,  n + 1).T,
-                cs.linspace(0.7, 0.52,   n + 1).T,
-            ),
-            "U_guess": lambda n: cs.DM.ones(1, n).T * 0.5,
-        },
-        {
-            "t0": None,
-            "tf_bounds": (None, None),  
-            "u_bounds": (0.0, 0.0),
-            "x_bounds": ([0.0, 0.0, 0.0], [2.0, 2.0, 2.0]),
-            "E": -xfs[0],
-            "e": xfs[2] - 0.5,
-            "e_bounds": ([0.0], [0.0]),
-            "e_scale": [1.0],
-            "t_guess": (0.20, 0.28),
-            "X_guess": lambda n: cs.vertcat(
-                cs.linspace(1.01, 1.011, n + 1).T,
-                cs.linspace(0.08, 0.0,   n + 1).T,
-                cs.DM.ones(1,            n + 1) * 0.5,
-            ),
-            "U_guess": lambda n: cs.DM.zeros(1, n).T,
-        },
-    ]
+def get_mayer(nx, nu, id):
+    sym = Syms(nx=nx, nu=nu)
+    t0, tf, x0, xf = sym.get_event()
+    event = sym.get_event()
+    if id in [0, 1]:
+        return {"E": None}
+    elif id == 2:
+        return {"E": cs.Function("E", event, [-xf[0]])}
+    else:
+        raise ValueError("Incorrect ID")
 
-    # OCP Generation Loop
-    ocps, dis_ocps,guesses = [], [],[]
-    nlp = cs.Opti()
 
-    for i, data in enumerate(phases_data):
-        n=discs[i].n
-        ocp_config = {
-            "nx": 3,
-            "nu": 1,
-            "t0": data["t0"],
-            "tf": None,
-            "L": None,
-            "f": f_func,
-            "E": cs.Function(f"E{i}", event, [data["E"]]),
-            "e": cs.Function(f"e{i}", event, [data["e"]]),
-            "e_lb": cs.DM(data["e_bounds"][0]),
-            "e_ub": cs.DM(data["e_bounds"][1]),
-            "u_lb": cs.DM([data["u_bounds"][0]]),
-            "u_ub": cs.DM([data["u_bounds"][1]]),
-            "tf_lb": cs.DM([data["tf_bounds"][0]])
-            if data["tf_bounds"][0] is not None
-            else None,
-            "tf_ub": cs.DM([data["tf_bounds"][1]])
-            if data["tf_bounds"][1] is not None
-            else None,
-            "x_lb": cs.DM(data["x_bounds"][0]),
-            "x_ub": cs.DM(data["x_bounds"][1]),
-            "J_s": cs.DM([1.0]),
-            "t_s": cs.DM([0.1 * (i + 1)]),
-            "x_s": cs.DM([1.0, 0.1, 1.0]),
-            "u_s": cs.DM([1.0]),
-            "e_s": cs.DM(data["e_scale"]),
-            "h_s": None,
+def get_dynamics(nx, nu, id):
+    sym = Syms(nx=nx, nu=nu)
+    t, x, u = sym.get_path()
+    path = sym.get_path()
+    if id in [0, 1, 2]:
+        mu, ve = 1.0, 0.5
+        r, v, m = x[0, :], x[1, :], x[2, :]
+        f = cs.vertcat(v, -mu / (r.T @ r) + u / m, -u / ve)
+        return {"f": cs.Function("f", path, [f])}
+    else:
+        raise ValueError("Incorrect ID")
+
+
+def get_event(nx, nu, id):
+    sym = Syms(nx=nx, nu=nu)
+    t0, tf, x0, xf = sym.get_event()
+    event = sym.get_event()
+    if id == 0:
+        e = cs.vertcat(x0 - cs.DM([1.0, 0.0, 1.0]), t0 - 0)
+        lb = cs.DM.zeros(e.shape)
+        ub = cs.DM.zeros(e.shape)
+        return {"e": cs.Function("e", event, [e]), "e_lb": lb, "e_ub": ub}
+    elif id == 1:
+        e = cs.vertcat(tf - t0, x0[2] - 0.7)
+        lb = cs.DM([1e-6, 0])
+        ub = cs.DM([100, 0])
+        return {"e": cs.Function("e", event, [e]), "e_lb": lb, "e_ub": ub}
+    elif id == 2:
+        e = cs.vertcat(xf[2] - 0.5, tf - t0)
+        lb = cs.DM([0, 1e-6])
+        ub = cs.DM([0, 100])
+        return {"e": cs.Function("e", event, [e]), "e_lb": lb, "e_ub": ub}
+    else:
+        raise ValueError("Incorrect ID")
+
+
+def get_simple(name, id):
+    if id == 0:
+        if name == "X":
+            lb, ub = cs.DM([0] * 3), cs.DM([2] * 3)
+            return {"x_lb": lb, "x_ub": ub}
+        elif name == "U":
+            lb, ub = cs.DM([1.167]), cs.DM([1.167])
+            return {"u_lb": lb, "u_ub": ub}
+        elif name == "t0":
+            lb, ub = None, None
+            return {"t0_lb": lb, "t0_ub": ub}
+        elif name == "tf":
+            lb, ub = None, None
+            return {"tf_lb": lb, "tf_ub": ub}
+        else:
+            raise ValueError(f"Incorrect name {name}")
+    elif id == 1:
+        if name == "X":
+            lb, ub = cs.DM([0] * 3), cs.DM([2] * 3)
+            return {"x_lb": lb, "x_ub": ub}
+        elif name == "U":
+            lb, ub = cs.DM([0]), cs.DM([0.875])
+            return {"u_lb": lb, "u_ub": ub}
+        elif name == "t0":
+            lb, ub = None, None
+            return {"t0_lb": lb, "t0_ub": ub}
+        elif name == "tf":
+            lb, ub = None, None
+            return {"tf_lb": lb, "tf_ub": ub}
+        else:
+            raise ValueError(f"Incorrect name {name}")
+    elif id == 2:
+        if name == "X":
+            lb, ub = cs.DM([0] * 3), cs.DM([2] * 3)
+            return {"x_lb": lb, "x_ub": ub}
+        elif name == "U":
+            lb, ub = cs.DM([0]), cs.DM([0])
+            return {"u_lb": lb, "u_ub": ub}
+        elif name == "t0":
+            lb, ub = None, None
+            return {"t0_lb": lb, "t0_ub": ub}
+        elif name == "tf":
+            lb, ub = None, None
+            return {"tf_lb": lb, "tf_ub": ub}
+        else:
+            raise ValueError(f"Incorrect name {name}")
+    else:
+        raise ValueError("Incorrect ID")
+
+
+def get_disc(id) -> disc_opt:
+    if id == 0:
+        disc_data = {
+            "n": 15,
+            "method": "exp_mid",
         }
+        return disc_opt(**disc_data)
+    elif id == 1:
+        disc_data = {
+            "n": 25,
+            "method": "her_sim",
+        }
+        return disc_opt(**disc_data)
+    elif id == 2:
+        disc_data = {
+            "n": 20,
+            "method": "trap",
+        }
+        return disc_opt(**disc_data)
+    else:
+        raise ValueError("Incorrect phase ID")
 
-        ocp = Ocp(**ocp_config)
-        dis_ocp = generate_NLP(ocp, nlp,discs[i])
-        guess={}
-        guess["X"] = data["X_guess"](n)
-        guess["U"] = data["U_guess"](n)
-        guess["t"] = data["t_guess"]
 
-        ocps.append(ocp)
-        dis_ocps.append(dis_ocp)
-        guesses.append(guess)
+def get_guess(dis_ocp, nlp: cs.Opti, id):
+    if id == 0:
+        guess_data = {
+            "n": get_disc(id).n,
+            "xl": [1, 0, 1],
+            "xr": [1.002, 0.02, 0.8],
+            "ul": [1.167],
+            "ur": [1.167],
+            "tl": 0,
+            "tr": 0.08,
+        }
+        guess = LinGuess(**guess_data)
+        guess.set_guess(dis_ocp, nlp)
+    elif id == 1:
+        guess_data = {
+            "n": get_disc(id).n,
+            "xl": [1.01, 0.08, 1],
+            "xr": [1.002, 0.0, 1],
+            "ul": [0.5],
+            "ur": [0.5],
+            "tl": 0.08,
+            "tr": 0.2,
+        }
+        guess = LinGuess(**guess_data)
+        guess.set_guess(dis_ocp, nlp)
+    elif id == 2:
+        guess_data = {
+            "n": get_disc(id).n,
+            "xl": [1.002, 0.02, 0.7],
+            "xr": [1.01, 0.08, 0.52],
+            "ul": [0],
+            "ur": [0],
+            "tl": 0.2,
+            "tr": 0.28,
+        }
+        guess = LinGuess(**guess_data)
+        guess.set_guess(dis_ocp, nlp)
+    else:
+        raise ValueError("Incorrect phase ID")
 
-    #  Phase Linkages (Hard Knots)
-    # Phase 0 -> Phase 1
-    tf0, xf0 = dis_ocps[0].tf, dis_ocps[0].X[:, -1]
-    t01, x01 = dis_ocps[1].t0, dis_ocps[1].X[:, 0]
-    nlp.subject_to(tf0 - t01 == 0)
-    nlp.subject_to(xf0[0] - x01[0] == 0)
-    nlp.subject_to(xf0[1] - x01[1] == 0)
-    nlp.subject_to(x01[2] == 0.7)
-    nlp.subject_to(xf0[2] - x01[2] >= 0.1)
-    nlp.subject_to(xf0[2] - x01[2] <= 0.3)
 
-    # Phase 1 -> Phase 2
-    tf1, xf1 = dis_ocps[1].tf, dis_ocps[1].X[:, -1]
-    t02, x02 = dis_ocps[2].t0, dis_ocps[2].X[:, 0]
-    nlp.subject_to(tf1 - t02 == 0)
-    nlp.subject_to(xf1 - x02 == 0)
+from functools import reduce
 
+
+def create_multiphase_ocp():
+    nx = 3
+    nu = 1
+    ip = {"nx": nx, "nu": nu}
+    nlp = cs.Opti()
     nlp.solver("ipopt")
+    dis_ocps = []
+    #important to add objectives across phases
+    obj = 0
+    for i in range(3):
+        list_simple = [get_simple(name, i) for name in ["X", "U", "t0", "tf"]]
+        ocp_data = {"nx": nx, "nu": nu}
+        ocp_data = ocp_data | (
+            get_lagrange(**(ip | {"id": i}))
+            | get_mayer(**(ip | {"id": i}))
+            | get_dynamics(**(ip | {"id": i}))
+            | get_event(**(ip | {"id": i}))
+            | reduce(lambda x, y: x | y, list_simple)
+        )
 
-    for i, dis_ocp in enumerate(dis_ocps):
-        t0_g, tf_g = guesses[i]["t"]
-        if t0_g is not None:
-            nlp.set_initial(dis_ocp.t0, t0_g)
-        if tf_g is not None:
-            nlp.set_initial(dis_ocp.tf, tf_g)
-        nlp.set_initial(dis_ocp.X, guesses[i]["X"])
-        nlp.set_initial(dis_ocp.U, guesses[i]["U"])
+        ocp = Ocp(**ocp_data)
+        dis_ocp = generate_NLP(ocp=ocp, nlp=nlp, disc_opt=get_disc(id=i))
+        dis_ocps.append(dis_ocp)
+        get_guess(dis_ocp, nlp, i)
+        if i != 0:
+            ocp_l = dis_ocps[i - 1]
+            ocp_r = dis_ocps[i]
+            nlp.subject_to(ocp_l.tf - ocp_r.t0 == 0)
+            nlp.subject_to(ocp_l.X[0:2, -1] - ocp_r.X[0:2, 0] == 0)
+        if i == 1:
+            ocp_l = dis_ocps[i - 1]
+            ocp_r = dis_ocps[i]
+            nlp.subject_to(nlp.bounded(0.1, ocp_l.X[2, -1] - ocp_r.X[2, 0], 0.3))
+        if i == 2:
+            ocp_l = dis_ocps[i - 1]
+            ocp_r = dis_ocps[i]
+            nlp.subject_to(ocp_l.X[2, -1] - ocp_r.X[2, 0] == 0)
+        obj = obj + dis_ocp.J
 
+    nlp.minimize(obj)
     sol = nlp.solve()
 
-    plot_solution_all_phase(dis_ocps,sol,'rocket_multiphase')
+    plot_solution_all_phase(dis_ocps, sol, "rocket_multiphase")
+    plot_sparsity(nlp,'rocket_multiphase_sparsity')
 
 
 if __name__ == "__main__":
-    solve_multiphase_ocp()
+    create_multiphase_ocp()

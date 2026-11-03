@@ -11,5 +11,7 @@ from pytrajopt.pytrajopt import (
     plot_solution,
     plot_solution_all_phase,
     LinGuess,
-    DisOcp
+    DisOcp,
+    plot_sparsity,
+    CusGuess
 )
