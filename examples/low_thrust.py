@@ -2,13 +2,14 @@ import casadi as cs
 
 from pytrajopt import (
     DynamicMesh,
+    LinGuess,
     Ocp,
+    Syms,
     casadi_integrator,
     check_feasibility,
     disc_opt,
     generate_NLP,
     plot_solution,
-    Syms
 )
 
 
@@ -17,11 +18,11 @@ def low_thrust():
     ocp_data["nx"] = 4
     ocp_data["nu"] = 2
 
-    syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
-    t0s,tfs,x0s,xfs=syms.get_event()
-    ts,xs,us=syms.get_path()
-    event=syms.get_event()    
-    path=syms.get_path()
+    syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
+    t0s, tfs, x0s, xfs = syms.get_event()
+    ts, xs, us = syms.get_path()
+    event = syms.get_event()
+    path = syms.get_path()
 
     # initial and final time
     ocp_data["t0"] = cs.DM(0)
@@ -81,25 +82,21 @@ def low_thrust():
 
     ocp = Ocp(**ocp_data)
     nlp = cs.Opti()
-    dis_ocp = generate_NLP(
-        ocp,
-        nlp,
-        disc,
-        DynamicMesh(scale=cs.DM(50))
-    )
+    dis_ocp = generate_NLP(ocp, nlp, disc, DynamicMesh(scale=cs.DM(50)))
     nlp.solver("ipopt", {}, {"tol": 1e-5})
-    Xg = cs.vcat(
-        [
-            cs.linspace(1, 4, disc.n + 1).T,
-            cs.linspace(0, 0, disc.n + 1).T,
-            cs.linspace(0, 0, disc.n + 1).T,
-            cs.linspace(1, 0.5, disc.n + 1).T,
-        ]
-    )
-    nlp.set_initial(dis_ocp.t, cs.linspace(0, 50, disc.n + 1).T)
-    nlp.set_initial(dis_ocp.X, Xg)
-    nlp.set_initial(dis_ocp.U, cs.DM.zeros(dis_ocp.U.shape))
-    nlp.set_initial(dis_ocp.tf, 46)
+
+    guess_data = {
+        "n": disc.n,
+        "xl": [1, 0, 0, 1],
+        "xr": [4, 0, 0, 0.5],
+        "ul": [0, 0],
+        "ur": [0, 0],
+        "tl": 0,
+        "tr": 50,
+    }
+    guess = LinGuess(**guess_data)
+    guess.set_guess(dis_ocp, nlp)
+
     sol = nlp.solve()
 
     plot_solution(sol, dis_ocp, "low_thrust_sol")

@@ -8,6 +8,7 @@ from pytrajopt import (
     disc_opt,
     generate_NLP,
     plot_solution,
+    LinGuess
 )
 
 
@@ -78,16 +79,16 @@ def rocket():
     dis_ocp = generate_NLP(ocp, nlp, disc)
     nlp.solver("ipopt")
 
-    Xg = cs.vcat(
-        [
-            cs.linspace(0, 0 * 1e5, disc.n + 1).T,
-            cs.linspace(0, 0, disc.n + 1).T,
-            cs.linspace(1e5, 1e5, disc.n + 1).T,
-        ]
-    )
+    guess_data = {
+        "n": disc.n,
+        "xl": [0, 0, 1e5],
+        "xr": [0, 0, 1e5],
+        "ul": [0],
+        "ur": [0],
+    }
+    guess=LinGuess(**guess_data)
+    guess.set_guess(dis_ocp,nlp)    
 
-    nlp.set_initial(dis_ocp.X, Xg)
-    nlp.set_initial(dis_ocp.U, cs.DM.zeros(dis_ocp.U.shape))
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "rocket_sol")
     check_feasibility(ocp, dis_ocp, sol, "rocket_feas")

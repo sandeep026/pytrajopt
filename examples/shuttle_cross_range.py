@@ -1,20 +1,32 @@
 import casadi as cs
-from pytrajopt import casadi_integrator, plot_solution, Ocp, check_feasibility,generate_NLP, disc_opt, DynamicMesh,Syms
+
+from pytrajopt import (
+    DynamicMesh,
+    LinGuess,
+    Ocp,
+    Syms,
+    casadi_integrator,
+    check_feasibility,
+    disc_opt,
+    generate_NLP,
+    plot_solution,
+)
+
 
 def shuttle_max_crossrange():
     ocp_data = {}
-    ocp_data["nx"] = 5  
-    ocp_data["nu"] = 2  
+    ocp_data["nx"] = 5
+    ocp_data["nu"] = 2
 
-    syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
-    t0s,tfs,x0s,xfs=syms.get_event()
-    ts,xs,us=syms.get_path()
-    event=syms.get_event()    
-    path=syms.get_path()
+    syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
+    t0s, tfs, x0s, xfs = syms.get_event()
+    ts, xs, us = syms.get_path()
+    event = syms.get_event()
+    path = syms.get_path()
 
     # Initial and final time
     ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = None  
+    ocp_data["tf"] = None
 
     ocp_data["L"] = None
     ocp_data["E"] = cs.Function("E", event, [-xfs[1]])
@@ -25,7 +37,7 @@ def shuttle_max_crossrange():
         x0s - cs.DM([260000.0, 0.0, 25600.0, -1.0 * deg2rad, 90.0 * deg2rad]),
         xfs[0] - 80000.0,
         xfs[2] - 2500.0,
-        xfs[3] - (-5.0 * deg2rad)
+        xfs[3] - (-5.0 * deg2rad),
     )
     ocp_data["e"] = cs.Function("e", event, [e])
     ocp_data["e_lb"] = cs.vcat([0.0] * 8)
@@ -55,12 +67,12 @@ def shuttle_max_crossrange():
     r = Re + h
     g = mu / (r**2)
     rho_a = rho0 * cs.exp(-h / hr)
-    
+
     alpha_deg = (180.0 / cs.pi) * alpha
     cL = a0 + a1 * alpha_deg
     cD = b0 + b1 * alpha_deg + b2 * (alpha_deg**2)
-    q_heat=c0 + c1 * alpha_deg + c2 * (alpha_deg**2)+c3*(alpha_deg**3)
-    
+    q_heat = c0 + c1 * alpha_deg + c2 * (alpha_deg**2) + c3 * (alpha_deg**3)
+
     D = 0.5 * cD * rho_a * (v**2) * S
     L = 0.5 * cL * rho_a * (v**2) * S
 
@@ -69,77 +81,79 @@ def shuttle_max_crossrange():
     d_theta = (v / r) * cs.cos(gamma) * cs.cos(psi)
     dv = -D / mass - g * cs.sin(gamma)
     d_gamma = (L / (mass * v)) * cs.cos(beta) + cs.cos(gamma) * (v / r - g / v)
-    d_psi = (1.0 / (mass * v * cs.cos(gamma))) * (L * cs.sin(beta)) + (v / r) * cs.cos(gamma) * cs.sin(psi) * cs.tan(theta)
+    d_psi = (1.0 / (mass * v * cs.cos(gamma))) * (L * cs.sin(beta)) + (v / r) * cs.cos(
+        gamma
+    ) * cs.sin(psi) * cs.tan(theta)
 
     f = cs.vertcat(dh, d_theta, dv, d_gamma, d_psi)
     ocp_data["f"] = cs.Function("fss", path, [f])
 
-    disc_data={}
+    disc_data = {}
     disc_data["n"] = 40
-    disc_data['method'] =     casadi_integrator(
+    disc_data["method"] = casadi_integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 3,
             "collocation_scheme": "radau",
-            "rootfinder": 'kinsol',
+            "rootfinder": "kinsol",
             "number_of_finite_elements": 1,
             "simplify": True,
-            'error_on_fail':False
+            "error_on_fail": False,
         },
         nx=ocp_data["nx"],
         nu=ocp_data["nu"],
         path=[ts, xs, us],
         f=f,
     )
-    disc=disc_opt(**disc_data)
+    disc = disc_opt(**disc_data)
 
-    #state bounds
-    eps=1e-8
-    ocp_data['x_lb']=cs.DM([eps,-89*deg2rad,1,-89*deg2rad,-cs.DM.inf()])
-    ocp_data['x_ub']=cs.DM([cs.DM.inf(),89*deg2rad,cs.DM.inf(),89*deg2rad,cs.DM.inf()])
+    # state bounds
+    eps = 1e-8
+    ocp_data["x_lb"] = cs.DM([eps, -89 * deg2rad, 1, -89 * deg2rad, -cs.DM.inf()])
+    ocp_data["x_ub"] = cs.DM(
+        [cs.DM.inf(), 89 * deg2rad, cs.DM.inf(), 89 * deg2rad, cs.DM.inf()]
+    )
 
     # Control bounds
     ocp_data["u_lb"] = cs.DM([-90.0 * deg2rad, -90.0 * deg2rad])
     ocp_data["u_ub"] = cs.DM([90.0 * deg2rad, 1.0 * deg2rad])
-    
-    # Final time bounds (tF <= 2500)
-    ocp_data['tf_lb'] = cs.DM([0.0])
-    ocp_data['tf_ub'] = cs.DM([2500.0])
 
+    # Final time bounds (tF <= 2500)
+    ocp_data["tf_lb"] = cs.DM([0.0])
+    ocp_data["tf_ub"] = cs.DM([2500.0])
 
     # Nominal scaling values
-    ocp_data['J_s'] = cs.DM([1.0])
-    ocp_data['t_s'] = cs.DM([2000.0])
-    ocp_data['x_s'] = cs.DM([260000.0, 1.0, 25600.0, 1.0, 1.0])
-    ocp_data['u_s'] = cs.DM([1.0, 1.0])
-    ocp_data['e_s'] = cs.DM([260000.0, 1.0, 25600.0, 1.0, 1.0, 80000.0, 2500.0, 1.0])
-    ocp_data['h_s'] = None  
+    ocp_data["J_s"] = cs.DM([1.0])
+    ocp_data["t_s"] = cs.DM([2000.0])
+    ocp_data["x_s"] = cs.DM([260000.0, 1.0, 25600.0, 1.0, 1.0])
+    ocp_data["u_s"] = cs.DM([1.0, 1.0])
+    ocp_data["e_s"] = cs.DM([260000.0, 1.0, 25600.0, 1.0, 1.0, 80000.0, 2500.0, 1.0])
+    ocp_data["h_s"] = None
 
     ocp = Ocp(**ocp_data)
 
-    nlp=cs.Opti()
-    mesh=DynamicMesh(scale=2000)
-    dis_ocp = generate_NLP(ocp,nlp,disc,mesh)
+    nlp = cs.Opti()
+    mesh = DynamicMesh(scale=2000)
+    dis_ocp = generate_NLP(ocp, nlp, disc, mesh)
     nlp.solver("ipopt")
-    Xg = cs.vcat(
-        [
-            cs.linspace(260000.0, 80000.0,              disc.n + 1).T,
-            cs.linspace(0.0, 0.5,                       disc.n + 1).T,
-            cs.linspace(25600.0, 2500.0,                disc.n + 1).T,
-            cs.linspace(-1.0 * deg2rad, -5.0 * deg2rad, disc.n + 1).T,
-            cs.linspace(85.0 * deg2rad, 0.0,            disc.n + 1).T,
-        ]
-    )
-    Ug=cs.vcat([cs.linspace(0.3,0.3,disc.n).T,cs.linspace(-1,0,disc.n).T])
 
-    nlp.set_initial(dis_ocp.t, cs.linspace(0,2000,disc.n+1).T)
-    nlp.set_initial(dis_ocp.X, Xg)
-    nlp.set_initial(dis_ocp.U, Ug)
-    nlp.set_initial(dis_ocp.tf, 2000.0)
-    
+    guess_data = {
+        "n": disc.n,
+        "xl": [2.6e5, 0, 2.56e4, -1 * deg2rad, 85 * deg2rad],
+        "xr": [8e4, 0.5, 2.5e3, -5 * deg2rad, 0],
+        "ul": [0.3, -1],
+        "ur": [0.3, 0],
+        "tl": 0,
+        "tr": 2000,
+    }
+
+    guess = LinGuess(**guess_data)
+    guess.set_guess(dis_ocp, nlp)
+
     sol = nlp.solve()
-    plot_solution(sol, dis_ocp,'shuttle_cross_range_sol')
-    check_feasibility(ocp, dis_ocp, sol,'shuttle_cross_range_feas')
+    plot_solution(sol, dis_ocp, "shuttle_cross_range_sol")
+    check_feasibility(ocp, dis_ocp, sol, "shuttle_cross_range_feas")
+
 
 if __name__ == "__main__":
     shuttle_max_crossrange()

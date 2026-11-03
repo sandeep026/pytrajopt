@@ -2,6 +2,8 @@ import casadi as cs
 import numpy as np
 
 from pytrajopt import (
+    DisOcp,
+    LinGuess,
     Ocp,
     Syms,
     casadi_integrator,
@@ -12,6 +14,7 @@ from pytrajopt import (
 )
 
 # time dilation vs variable mesh
+
 
 def get_ocp(aug: bool):
     if not aug:
@@ -26,7 +29,7 @@ def get_ocp(aug: bool):
         ocp_data["L"] = cs.Function("L", path, [0.5 * (xs**2 + us**2)])
         ocp_data["E"] = None
         ocp_data["e"] = cs.Function(
-            "e", event, [cs.vertcat(x0s - cs.DM([1]), xfs - 1.5)]
+            "e", event, [cs.vertcat(x0s - cs.DM([1.5]), xfs - 1)]
         )
         ocp_data["e_lb"] = cs.DM([0] * 2)
         ocp_data["e_ub"] = cs.DM([0] * 2)
@@ -40,21 +43,17 @@ def get_ocp(aug: bool):
         ocp_data = {}
         ocp_data["nx"] = 2
         ocp_data["nu"] = 2
-        ts = cs.SX.sym("ts", 1, 1)
-        xs = cs.SX.sym("xs", ocp_data["nx"], 1)
-        us = cs.SX.sym("us", ocp_data["nu"], 1)
-        t0s = cs.SX.sym("t0s", 1, 1)
-        tfs = cs.SX.sym("tfs", 1, 1)
-        x0s = cs.SX.sym("x0s", ocp_data["nx"], 1)
-        xfs = cs.SX.sym("xfs", ocp_data["nx"], 1)
-        path = [ts, xs, us]
-        event = [t0s, tfs, x0s, xfs]
+        syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
+        t0s, tfs, x0s, xfs = syms.get_event()
+        ts, xs, us = syms.get_path()
+        event = syms.get_event()
+        path = syms.get_path()
         ocp_data["L"] = cs.Function(
             "L", path, [0.5 * (xs[0] ** 2 + us[0] ** 2) * us[1]]
         )
         ocp_data["E"] = None
         ocp_data["e"] = cs.Function(
-            "e", event, [cs.vertcat(x0s - cs.DM([1, 0]), xfs - cs.DM([1.5, 10000]))]
+            "e", event, [cs.vertcat(x0s - cs.DM([1.5, 0]), xfs - cs.DM([1, 10000]))]
         )
         ocp_data["e_lb"] = cs.DM([0] * 4)
         ocp_data["e_ub"] = cs.DM([0] * 4)
@@ -71,28 +70,36 @@ def get_ocp(aug: bool):
         return ocp, path
 
 
-def set_guess(nlp: cs.Opti, dis_ocp: dict, disc: disc_opt, aug: bool = False):
+def set_guess(nlp: cs.Opti, dis_ocp: DisOcp, disc: disc_opt, aug: bool = False):
     if not aug:
-        tg = cs.linspace(0, 10000, disc.n + 1).T
-        Xg = cs.vertcat(cs.linspace(1.5, 1, disc.n + 1).T)
-        Ug = cs.vertcat(cs.linspace(1.5, 1, disc.n).T ** 3)
-        nlp.set_initial(dis_ocp.t, tg)
-        nlp.set_initial(dis_ocp.X, cs.vertcat(Xg))
-        nlp.set_initial(dis_ocp.U, cs.vertcat(Ug))
+        guess_data = {
+            "n": disc_opt.n,
+            "xl": [1.5],
+            "xr": [1],
+            "ul": [1.5**3],
+            "ur": [1**3],
+            "tl": 0,
+            "tr": 10000,
+        }
+        guess = LinGuess(**guess_data)
+        guess.set_guess(dis_ocp, nlp)
+
     else:
-        Xg = cs.vertcat(
-            cs.linspace(1, 1.5, disc.n + 1).T, cs.linspace(0, 10000, disc.n + 1).T
-        )
-        Ug = cs.vertcat(
-            cs.linspace(1, 1.5, disc.n).T ** 3 - 0.5 / (10000),
-            cs.linspace(10000, 10000, disc.n).T,
-        )
-        nlp.set_initial(dis_ocp.X, cs.vertcat(Xg))
-        nlp.set_initial(dis_ocp.U, cs.vertcat(Ug))
+        guess_data = {
+            "n": disc_opt.n,
+            "xl": [1.5, 0],
+            "xr": [1, 10000],
+            "ul": [1.5**3 - 5e-6, 10000],
+            "ur": [1**3 - 5e-6, 10000],
+            "tl": 0,
+            "tr": 10000,
+        }
+        guess = LinGuess(**guess_data)
+        guess.set_guess(dis_ocp, nlp)
 
 
 def solve():
-    aug = True
+    aug = False
     ocp, path = get_ocp(aug)
     nlp = cs.Opti()
     method = "her_sim"
@@ -104,17 +111,17 @@ def solve():
     #    path=path,
     #    f=ocp.f(*path),
     # )
-    n = 200
+    n = 100
     disc = disc_opt(n=n, method=method)
     from pytrajopt import DynamicMesh
 
     if aug:
         mesh = None
     else:
-        mesh = DynamicMesh(k1=0.001, k2=10000000)
+        mesh = DynamicMesh(k1=0.000001, k2=10000000)
     dis_ocp = generate_NLP(ocp, nlp, disc, mesh)
     nlp.solver("ipopt", {"ipopt.tol": 1e-7})
-    set_guess(nlp, dis_ocp, disc, aug)
+
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "hyper_sol")
     check_feasibility(ocp, dis_ocp, sol, "hyper_feas")
