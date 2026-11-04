@@ -13,6 +13,11 @@ from pytrajopt import (
     LinGuess
 )
 
+def meta():
+    data = r"Betts, John T. Practical Methods for Optimal Control and Estimation Using Nonlinear Programming. Second, Society for Industrial and Applied Mathematics, 2010. DOI.org (Crossref), https://doi.org/10.1137/1.9780898718577."
+    return data
+
+
 
 def ffrb():
     """Free-Flying Robot OCP: Chapter 25, Example 25.1."""

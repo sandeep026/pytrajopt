@@ -11,6 +11,11 @@ from pytrajopt import (
     LinGuess
 )
 
+def meta():
+    data = r"https://web.casadi.org/blog/nlp-scaling/"
+    return data
+
+
 
 def rocket():
     ocp_data = {}

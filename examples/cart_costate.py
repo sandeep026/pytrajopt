@@ -13,6 +13,9 @@ from pytrajopt import (
     plot_solution,
 )
 
+def meta():
+    data=r'Conway, B. A., and K. M. Larson. “Collocation Versus Differential Inclusion in Direct Optimization.” Journal of Guidance, Control, and Dynamics, vol. 21, no. 5, Sept. 1998, pp. 780–85. DOI.org (Crossref), https://doi.org/10.2514/2.4306.'
+    return data
 
 def cart_costate():
     # ocp_data

@@ -11,6 +11,9 @@ from pytrajopt import (
     LinGuess
 )
 
+def meta():
+    data=r'hen, Weifeng, and Lorenz T. Biegler. “Nested Direct Transcription Optimization for Singular Optimal Control Problems.” AIChE Journal, vol. 62, no. 10, Oct. 2016, pp. 3611–27. DOI.org (Crossref), https://doi.org/10.1002/aic.15272.'
+    return data
 
 def ally():
     ocp_data = {}
@@ -72,5 +75,5 @@ def ally():
     plot_solution(sol, dis_ocp, "ally_chen_sol")
     check_feasibility(ocp, dis_ocp, sol, "ally_chen_feas")
 
-
-ally()
+if __name__=='__main__':
+    ally()

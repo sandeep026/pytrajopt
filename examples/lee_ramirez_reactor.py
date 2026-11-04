@@ -12,6 +12,10 @@ from pytrajopt import (
     LinGuess,
 )
 
+def meta():
+    data=r'hen, Weifeng, and Lorenz T. Biegler. “Nested Direct Transcription Optimization for Singular Optimal Control Problems.” AIChE Journal, vol. 62, no. 10, Oct. 2016, pp. 3611–27. DOI.org (Crossref), https://doi.org/10.1002/aic.15272.'
+    return data
+
 
 def lee_ramirez_reactor():
     ocp_data = {}
@@ -31,10 +35,10 @@ def lee_ramirez_reactor():
     )
     ocp_data["e_lb"] = cs.DM([0] * 7)
     ocp_data["e_ub"] = cs.DM([0] * 7)
-    ocp_data["h"] = cs.Function("h", path, [cs.vertcat(xs[0], xs[3])])
-    inf = cs.DM.inf()
-    ocp_data["h_lb"] = cs.DM([0] * 2)
-    ocp_data["h_ub"] = cs.DM([inf] * 2)
+    #ocp_data["h"] = cs.Function("h", path, [cs.vertcat(xs[0], xs[2], xs[4])])
+    #inf = cs.DM.inf()
+    #ocp_data["h_lb"] = cs.DM([1e-8] * 3)
+    #ocp_data["h_ub"] = cs.DM([inf] * 3)
     ocp_data["t0"] = cs.DM(0)
     ocp_data["tf"] = cs.DM(10)
 
@@ -76,35 +80,29 @@ def lee_ramirez_reactor():
         path,
         [dyn],
     )
-    ocp_data["x_lb"] = cs.DM([-cs.DM.inf()] * 7)
+
+    inf=cs.DM.inf()
+    ocp_data["x_lb"] = cs.DM([1 ,-inf ,0 ,-inf, 0 ,-inf, -inf])
     ocp_data["x_ub"] = cs.DM([cs.DM.inf()] * 7)
-    n = 30
     ocp_data["u_lb"] = cs.DM([0, 0])
     ocp_data["u_ub"] = cs.DM([1, 1])
-    # ocp_data['x_s']= cs.DM([1,0.1,40,1,1,1,1])
-
+    ocp_data['x_s']= cs.DM([1,1,50,1,1,1,1])
     ocp = Ocp(**ocp_data)
-    nlp = cs.Opti()
 
+    n = 100
     method = "rk4"
-    # casadi_integrator(
-    #    plugin="rk",
-    #    plugin_options={"number_of_finite_elements": 1, "simplify": True},
-    #    nx=ocp.nx,
-    #    nu=ocp.nu,
-    #    path=[ts, xs, us],
-    #    f=ocp.f(ts, xs, us),
-    # )
     disc = disc_opt(n=n, method=method)
 
-    dis_ocp = generate_NLP(ocp, nlp, disc,DynamicMesh(scale=10) )
+    nlp = cs.Opti()
     nlp.solver("ipopt")
+
+    dis_ocp = generate_NLP(ocp, nlp, disc,)
 
     guess_data = {
         "n": disc.n,
         "xl": [1, 0.1, 40, 0, 0, 1, 0],
         "xr": [1, 0.1, 40, 0, 0, 1, 0],
-        "ul": [0, 1],
+        "ul": [0, 0],
         "ur": [1, 1],
         "tl": 0,
         "tr": 10,
@@ -116,5 +114,5 @@ def lee_ramirez_reactor():
     plot_solution(sol, dis_ocp, "lee_ramirez_reactor_sol")
     check_feasibility(ocp, dis_ocp, sol, "lee_ramirez_reactor_feas")
 
-
-lee_ramirez_reactor()
+if __name__=='__main__':
+    lee_ramirez_reactor()

@@ -12,6 +12,9 @@ from pytrajopt import (
     plot_solution,
 )
 
+def meta():
+    data=r'Ross, I. Michael, et al. “Low-Thrust, High-Accuracy Trajectory Optimization.” Journal of Guidance, Control, and Dynamics, vol. 30, no. 4, July 2007, pp. 921–33. DOI.org (Crossref), https://doi.org/10.2514/1.23181.'
+    return data
 
 def low_thrust():
     ocp_data = {}

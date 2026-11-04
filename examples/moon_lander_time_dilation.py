@@ -11,6 +11,9 @@ from pytrajopt import (
     plot_solution,
 )
 
+def meta():
+    data=r'Meditch, J.. (1964). On the problem of optimal thrust programming for a lunar soft landing. IEEE Transactions on Automatic Control, 9(4), 477–484. doi:10.1109/tac.1964.1105758 https://gpops2.com/examples/moonlander.html'
+    return data
 
 def moon():
     ocp_data = {}

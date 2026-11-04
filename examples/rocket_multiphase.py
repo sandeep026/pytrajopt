@@ -24,7 +24,7 @@ def meta():
 
 def get_times(id):
     if id == 0:
-        t0, tf = 0, None
+        t0, tf = cs.DM(0), None
         return {"t0": t0, "tf": tf}
     elif id in [1,2]:
         t0, tf = None, None
@@ -70,7 +70,7 @@ def get_event(nx, nu, id):
     t0, tf, x0, xf = sym.get_event()
     event = sym.get_event()
     if id == 0:
-        e = cs.vertcat(x0 - cs.DM([1.0, 0.0, 1.0]), t0 - 0)
+        e = cs.vertcat(x0 - cs.DM([1.0, 0.0, 1.0]))
         lb = cs.DM.zeros(e.shape)
         ub = cs.DM.zeros(e.shape)
         return {"e": cs.Function("e", event, [e]), "e_lb": lb, "e_ub": ub}
@@ -153,7 +153,7 @@ def get_disc(id) -> disc_opt:
         return disc_opt(**disc_data)
     elif id == 2:
         disc_data = {
-            "n": 20,
+            "n": 30,
             "method": "trap",
         }
         return disc_opt(**disc_data)
@@ -218,7 +218,8 @@ def create_multiphase_ocp():
         list_simple = [get_simple(name, i) for name in ["X", "U", "t0", "tf"]]
         ocp_data = {"nx": nx, "nu": nu}
         ocp_data = ocp_data | (
-            get_lagrange(**(ip | {"id": i}))
+            get_times(i)
+            |get_lagrange(**(ip | {"id": i}))
             | get_mayer(**(ip | {"id": i}))
             | get_dynamics(**(ip | {"id": i}))
             | get_event(**(ip | {"id": i}))

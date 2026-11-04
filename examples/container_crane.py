@@ -12,6 +12,9 @@ from pytrajopt import (
     LinGuess
 )
 
+def meta():
+    data=r'https://archiv.ub.uni-heidelberg.de/volltextserver/24212/1/Dissertation_Bergner17.pdf'
+    return data
 
 def crane():
     # ensure initial condition placed first in event constraint to estimate correct costate at t0

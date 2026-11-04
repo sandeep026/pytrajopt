@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Literal
 
-import scipy.sparse as sp
 import casadi as cs
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.sparse as sp
 from matplotlib.backends.backend_pdf import PdfPages
 from pydantic import (
     BaseModel,
@@ -14,6 +14,8 @@ from pydantic import (
     PrivateAttr,
     field_validator,
     model_validator,
+    validate_call,
+    InstanceOf
 )
 from scipy.integrate import solve_ivp
 from scipy.interpolate import make_interp_spline
@@ -766,8 +768,9 @@ class DynamicMesh(BaseModel):
     k2: float = 2  # >1
 
 
+@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def generate_NLP(
-    ocp: Ocp, nlp: cs.Opti, disc_opt: disc_opt, mesh: DynamicMesh | None = None
+    ocp: InstanceOf[Ocp], nlp: cs.Opti, disc_opt: InstanceOf[disc_opt], mesh: InstanceOf[DynamicMesh] | None = None
 ):
     n = disc_opt.n
     nx, nu = ocp.nx, ocp.nu
@@ -1035,6 +1038,7 @@ class DisOcp(BaseModel):
             )
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def get_discrete_dynamics(ocp: Ocp, disc_opt: disc_opt, t, X, U) -> tuple:
     F = ocp.f.map(disc_opt.n, "serial")
     Xl = X[:, 0:-1]
@@ -1098,6 +1102,7 @@ def get_discrete_dynamics(ocp: Ocp, disc_opt: disc_opt, t, X, U) -> tuple:
         raise ValueError("Wrong option for method")
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def kkt_ub_lb(kkt: cs.DM):
     if kkt.shape != (1, 1):
         pieces = kkt.shape[1] // 2
@@ -1107,7 +1112,8 @@ def kkt_ub_lb(kkt: cs.DM):
     return lbub[1] - lbub[0]
 
 
-def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t: cs.DM | cs.MX):
     dual = {}
 
     for name, constraint in constraints.items():
@@ -1125,6 +1131,7 @@ def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t):
     return dual
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     fig, ax = plt.subplots()
     for i in range(var.shape[0]):
@@ -1146,6 +1153,7 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     plt.close()
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
     tx = sol.value(dis_ocp.t)
     tu = tx[0:-1]
@@ -1160,6 +1168,7 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
             plotting(tvar, var, name, pdf=pdf)
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def pc_interp(t: np.ndarray, U: np.ndarray):
     if U.ndim == 2:
         U = np.hstack([U, U[:, -1].reshape(-1, 1)])
@@ -1171,6 +1180,7 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
     return zoh
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
     if X.ndim == 2:
         axis = 1
@@ -1180,6 +1190,7 @@ def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
     return cubic
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def check_feasibility(
     ocp: Ocp, dis_ocp: DisOcp, sol: cs.OptiSol, name: str = "feasibility"
 ):
@@ -1249,6 +1260,35 @@ def check_feasibility(
             plt.close()
 
 
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+def plot_sparsity(
+    nlp: cs.Opti, filename: str = "sparsity", raster_threshold: int = 50000
+):
+    x = nlp.x
+    f = nlp.f
+    g = nlp.g
+    lam = nlp.lam_g
+    L = f + cs.dot(lam, g)
+    J = cs.jacobian(g, x)
+    H = cs.hessian(L, x)[0]
+    fig, ax = plt.subplots(figsize=(6, 6))
+    with PdfPages(f"{filename}.pdf") as pdf:
+        for name, mat in zip(["Jacobian", "Hessian"], [J, H]):
+            ax.clear()
+            rows, cols = mat.sparsity().get_triplet()
+            S = sp.coo_matrix(
+                (np.ones(len(rows), dtype=np.uint8), (rows, cols)), shape=mat.shape
+            )
+
+            use_raster = mat.nnz() > raster_threshold
+            ax.spy(S, marker=".", markersize=1, rasterized=use_raster)
+            ax.set_aspect("equal")
+            ax.set_title(name)
+            pdf.savefig(fig, bbox_inches="tight")
+    plt.close(fig)
+
+
+#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
 
     with PdfPages(f"{name}.pdf") as pdf:
@@ -1431,28 +1471,3 @@ class CusGuess(BaseModel):
                         nlp.set_initial(dis_ocp.t0, self.t0g)
                     elif cs.is_equal(dis_ocp.tf, i):
                         nlp.set_initial(dis_ocp.tf, self.tfg)
-
-
-def plot_sparsity(nlp: cs.Opti, filename: str = "sparsity",raster_threshold:int=50000):
-    x = nlp.x
-    f = nlp.f
-    g = nlp.g
-    lam = nlp.lam_g
-    L = f + cs.dot(lam, g)
-    J = cs.jacobian(g, x)
-    H = cs.hessian(L, x)[0]
-    fig, ax = plt.subplots(figsize=(6, 6))
-    with PdfPages(f"{filename}.pdf") as pdf:
-        for name, mat in zip(["Jacobian", "Hessian"], [J, H]):
-            ax.clear()
-            rows, cols = mat.sparsity().get_triplet()
-            S = sp.coo_matrix(
-                (np.ones(len(rows), dtype=np.uint8), (rows, cols)), shape=mat.shape
-            )
-
-            use_raster = mat.nnz() > raster_threshold
-            ax.spy(S, marker=".", markersize=1, rasterized=use_raster)
-            ax.set_aspect('equal')
-            ax.set_title(name)
-            pdf.savefig(fig, bbox_inches="tight")
-    plt.close(fig)
