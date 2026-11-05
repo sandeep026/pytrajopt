@@ -26,15 +26,11 @@ def shuttle_max_crossrange():
     syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
-    event = syms.get_event()
-    path = syms.get_path()
 
     # Initial and final time
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = None
+    ocp_data["t0"] = 0
 
-    ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", event, [-xfs[1]])
+    ocp_data["E"] = syms.get_function('E',-xfs[1],'event')
 
     # Event constraints (Initial & Final conditions)
     deg2rad = cs.pi / 180.0
@@ -44,9 +40,9 @@ def shuttle_max_crossrange():
         xfs[2] - 2500.0,
         xfs[3] - (-5.0 * deg2rad),
     )
-    ocp_data["e"] = cs.Function("e", event, [e])
-    ocp_data["e_lb"] = cs.vcat([0.0] * 8)
-    ocp_data["e_ub"] = cs.vcat([0.0] * 8)
+    ocp_data["e"] = syms.get_function('e',e,'event')
+    ocp_data["e_lb"] = [0] * 8
+    ocp_data["e_ub"] = [0] * 8
 
     Re = 20902900.0
     mu = 0.14076539e17
@@ -91,7 +87,32 @@ def shuttle_max_crossrange():
     ) * cs.sin(psi) * cs.tan(theta)
 
     f = cs.vertcat(dh, d_theta, dv, d_gamma, d_psi)
-    ocp_data["f"] = cs.Function("fss", path, [f])
+
+    ocp_data["f"] =  syms.get_function('f',f,'path')
+
+    # state bounds
+    eps = 1e-8
+    inf=cs.DM.inf()
+    ocp_data["x_lb"] = [eps, -89 * deg2rad, 1, -89 * deg2rad, -inf]
+    ocp_data["x_ub"] = [inf, 89 * deg2rad, inf, 89 * deg2rad, inf]
+
+    # Control bounds
+    ocp_data["u_lb"] = [-90.0 * deg2rad, -90.0 * deg2rad]
+    ocp_data["u_ub"] = [90.0 * deg2rad, 1.0 * deg2rad]
+
+    # Final time bounds (tF <= 2500)
+    ocp_data["tf_lb"] = [0.0]
+    ocp_data["tf_ub"] = [2500.0]
+
+    # Nominal scaling values
+    ocp_data["J_s"] = [1.0]
+    ocp_data["t_s"] = [2000.0]
+    ocp_data["x_s"] = [260000.0, 1.0, 25600.0, 1.0, 1.0]
+    ocp_data["u_s"] = [1.0, 1.0]
+    ocp_data["e_s"] = [260000.0, 1.0, 25600.0, 1.0, 1.0, 80000.0, 2500.0, 1.0]
+
+    ocp = Ocp(**ocp_data)
+
 
     disc_data = {}
     disc_data["n"] = 40
@@ -112,35 +133,10 @@ def shuttle_max_crossrange():
     )
     disc = disc_opt(**disc_data)
 
-    # state bounds
-    eps = 1e-8
-    ocp_data["x_lb"] = cs.DM([eps, -89 * deg2rad, 1, -89 * deg2rad, -cs.DM.inf()])
-    ocp_data["x_ub"] = cs.DM(
-        [cs.DM.inf(), 89 * deg2rad, cs.DM.inf(), 89 * deg2rad, cs.DM.inf()]
-    )
-
-    # Control bounds
-    ocp_data["u_lb"] = cs.DM([-90.0 * deg2rad, -90.0 * deg2rad])
-    ocp_data["u_ub"] = cs.DM([90.0 * deg2rad, 1.0 * deg2rad])
-
-    # Final time bounds (tF <= 2500)
-    ocp_data["tf_lb"] = cs.DM([0.0])
-    ocp_data["tf_ub"] = cs.DM([2500.0])
-
-    # Nominal scaling values
-    ocp_data["J_s"] = cs.DM([1.0])
-    ocp_data["t_s"] = cs.DM([2000.0])
-    ocp_data["x_s"] = cs.DM([260000.0, 1.0, 25600.0, 1.0, 1.0])
-    ocp_data["u_s"] = cs.DM([1.0, 1.0])
-    ocp_data["e_s"] = cs.DM([260000.0, 1.0, 25600.0, 1.0, 1.0, 80000.0, 2500.0, 1.0])
-    ocp_data["h_s"] = None
-
-    ocp = Ocp(**ocp_data)
-
     nlp = cs.Opti()
+    nlp.solver("ipopt")
     mesh = DynamicMesh(scale=2000)
     dis_ocp = generate_NLP(ocp, nlp, disc, mesh)
-    nlp.solver("ipopt")
 
     guess_data = {
         "n": disc.n,
@@ -158,7 +154,6 @@ def shuttle_max_crossrange():
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "shuttle_cross_range_sol")
     check_feasibility(ocp, dis_ocp, sol, "shuttle_cross_range_feas")
-
 
 if __name__ == "__main__":
     shuttle_max_crossrange()

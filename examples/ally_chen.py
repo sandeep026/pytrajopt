@@ -22,33 +22,25 @@ def ally():
     syms=Syms(nx=ocp_data['nx'],nu=ocp_data['nu'])
     t0s,tfs,x0s,xfs=syms.get_event()
     ts,xs,us=syms.get_path()
-    event=syms.get_event()    
-    path=syms.get_path()
     ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", event, [xfs[2]])
-    ocp_data["e"] = cs.Function(
-        "e",
-        event,
-        [cs.vertcat(x0s - cs.DM([0,1, 0]))],
-    )
-    ocp_data["e_lb"] = cs.DM([0] * 3)
-    ocp_data["e_ub"] = cs.DM([0] * 3)
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = cs.DM(cs.pi/2)
-    ocp_data["f"] = cs.Function(
-        "f",
-        path,
-        [cs.vertcat(xs[1],us,0.5*(xs[1]**2-xs[0]**2))],
-    )
-    ocp_data["x_lb"] = cs.DM([-cs.DM.inf()]*3)
-    ocp_data["x_ub"] = cs.DM([cs.DM.inf()]*3)
-    n = 40
-    ocp_data["u_lb"] = cs.DM([-1])
-    ocp_data["u_ub"] = cs.DM([1])
+    ocp_data["E"] = syms.get_function('E',xfs[2],'event')
+    ocp_data["e"] = syms.get_function('e',cs.vertcat(x0s - cs.DM([0,1, 0])),'event')
+    ocp_data["e_lb"] = [0] * 3
+    ocp_data["e_ub"] = [0] * 3
+    ocp_data["t0"] = 0
+    ocp_data["tf"] = cs.pi/2
+    ocp_data["f"] = syms.get_function('f',cs.vertcat(xs[1],us,0.5*(xs[1]**2-xs[0]**2)),'path')
+
+    inf=cs.DM.inf()
+    ocp_data["x_lb"] = [-inf]*3
+    ocp_data["x_ub"] = [ inf]*3
+    ocp_data["u_lb"] = [-1]
+    ocp_data["u_ub"] = [ 1]
 
     ocp = Ocp(**ocp_data)
     nlp = cs.Opti()
 
+    n = 40
     method = casadi_integrator(
         plugin="rk",
         plugin_options={"number_of_finite_elements": 1, "simplify": True},

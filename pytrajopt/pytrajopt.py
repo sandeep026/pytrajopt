@@ -10,12 +10,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    InstanceOf,
     PositiveInt,
     PrivateAttr,
+    ValidationInfo,
     field_validator,
     model_validator,
     validate_call,
-    InstanceOf
 )
 from scipy.integrate import solve_ivp
 from scipy.interpolate import make_interp_spline
@@ -34,6 +35,17 @@ class Syms(BaseModel):
 
     @model_validator(mode="after")
     def create_syms(self) -> "Syms":
+        """
+        generates symbolics for
+        t0,tf,x0,xf and t,x,u
+        which will be used to create
+        casadi functions
+
+        Returns
+        -------
+        Syms
+            Syms
+        """
         ts = cs.SX.sym("ts", 1, 1)
         xs = cs.SX.sym("xs", self.nx, 1)
         us = cs.SX.sym("us", self.nu, 1)
@@ -46,10 +58,60 @@ class Syms(BaseModel):
         return self
 
     def get_path(self) -> list[cs.SX]:
+        """
+        t,x,u
+
+        Returns
+        -------
+        list[cs.SX]
+            [t,x,u]
+        """
         return self._path
 
     def get_event(self) -> list[cs.SX]:
+        """
+        t0,tf,x0,xf
+
+        Returns
+        -------
+        list[cs.SX]
+            [t0,tf,x0,xf]
+        """
         return self._event
+
+    def get_function(
+        self, name: str, expression: cs.SX, nature: Literal["event", "path"]
+    ) -> cs.Function:
+        """
+        generates a casadi function for Lagrange, Mayer,
+        event, dynamics and path constraints
+
+        Parameters
+        ----------
+        name : str
+            name passed to casadi.Function
+        expression : cs.SX
+            expression of symbolics
+        nature : Literal[&#39;event&#39;,&#39;path&#39;]
+            path or event variables
+
+        Returns
+        -------
+        cs.Function
+            a casadi function of the expression
+
+        Raises
+        ------
+        ValueError
+            path constraints have event variables and vice versa
+        """
+        input = self.get_path() if nature == "path" else self.get_event()
+        try:
+            return cs.Function(name, input, [expression])
+        except RuntimeError:
+            raise ValueError(
+                "Cannot mix path (t,x,u) and event (t0,tf,x0,xf) variables"
+            )
 
 
 class casadi_integrator(BaseModel):
@@ -281,9 +343,6 @@ class Ocp(BaseModel):
     x_o: cs.DM | None = None
     u_o: cs.DM | None = None
     t_o: cs.DM | None = None
-    # obj tuple[cs.DM,cs.DM] | None (1,0)
-    # constriant
-    # variables
 
     @field_validator("f", "L", "h")
     @classmethod
@@ -401,6 +460,62 @@ class Ocp(BaseModel):
             collection of function or None objects
         """
         return (self.E, self.e)
+
+    @field_validator("t0", "tf")
+    @classmethod
+    def positive(cls, t: cs.DM, data: ValidationInfo) -> cs.DM:
+        if t is not None and t < 0:
+            raise ValueError(f"{data.field_name} must be positive but received {t} <0 ")
+        return t
+
+    @model_validator(mode="before")
+    @classmethod
+    def type_cast(cls, raw) -> dict:
+        allowed = [
+            "t0",
+            "tf",
+            "e_lb",
+            "e_ub",
+            "h_lb",
+            "h_ub",
+            "x_lb",
+            "x_ub",
+            "u_lb",
+            "u_ub",
+            "t0_lb",
+            "t0_ub",
+            "tf_lb",
+            "tf_ub",
+            "J_s",
+            "x_s",
+            "x_o",
+            "u_s",
+            "u_o",
+            "t_s",
+            "t_o",
+            "e_s",
+            "h_s",
+        ]
+        for name, value in raw.items():
+            if name in allowed:
+                raw[name] = Ocp.py2cs(value, name)
+        return raw
+
+    @classmethod
+    def py2cs(cls, var, name):
+        if isinstance(var, (int, float, list, tuple)):
+            if isinstance(var, (float, int)):
+                return cs.DM(var)
+            else:
+                if not all(isinstance(i, (float, int, cs.DM)) for i in var):
+                    raise TypeError(
+                        f"All elements of {name} must be a float or int but received {type(var)}"
+                    )
+                return cs.DM(var)
+        elif isinstance(var, (cs.DM)) or var is None:
+            return var
+        else:
+            raise TypeError(f"{name} expects list, tuple, DM")
 
     @model_validator(mode="after")
     def validate_Ocp(self) -> "Ocp":
@@ -770,7 +885,10 @@ class DynamicMesh(BaseModel):
 
 @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def generate_NLP(
-    ocp: InstanceOf[Ocp], nlp: cs.Opti, disc_opt: InstanceOf[disc_opt], mesh: InstanceOf[DynamicMesh] | None = None
+    ocp: InstanceOf[Ocp],
+    nlp: cs.Opti,
+    disc_opt: InstanceOf[disc_opt],
+    mesh: InstanceOf[DynamicMesh] | None = None,
 ):
     n = disc_opt.n
     nx, nu = ocp.nx, ocp.nu
@@ -1038,7 +1156,7 @@ class DisOcp(BaseModel):
             )
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def get_discrete_dynamics(ocp: Ocp, disc_opt: disc_opt, t, X, U) -> tuple:
     F = ocp.f.map(disc_opt.n, "serial")
     Xl = X[:, 0:-1]
@@ -1102,7 +1220,7 @@ def get_discrete_dynamics(ocp: Ocp, disc_opt: disc_opt, t, X, U) -> tuple:
         raise ValueError("Wrong option for method")
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def kkt_ub_lb(kkt: cs.DM):
     if kkt.shape != (1, 1):
         pieces = kkt.shape[1] // 2
@@ -1112,7 +1230,7 @@ def kkt_ub_lb(kkt: cs.DM):
     return lbub[1] - lbub[0]
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t: cs.DM | cs.MX):
     dual = {}
 
@@ -1131,7 +1249,7 @@ def get_costate(ocp: Ocp, nlp: cs.Opti, constraints: dict, t: cs.DM | cs.MX):
     return dual
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     fig, ax = plt.subplots()
     for i in range(var.shape[0]):
@@ -1153,7 +1271,7 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     plt.close()
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
     tx = sol.value(dis_ocp.t)
     tu = tx[0:-1]
@@ -1168,7 +1286,7 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
             plotting(tvar, var, name, pdf=pdf)
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def pc_interp(t: np.ndarray, U: np.ndarray):
     if U.ndim == 2:
         U = np.hstack([U, U[:, -1].reshape(-1, 1)])
@@ -1180,7 +1298,7 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
     return zoh
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
     if X.ndim == 2:
         axis = 1
@@ -1190,7 +1308,7 @@ def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
     return cubic
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def check_feasibility(
     ocp: Ocp, dis_ocp: DisOcp, sol: cs.OptiSol, name: str = "feasibility"
 ):
@@ -1260,7 +1378,7 @@ def check_feasibility(
             plt.close()
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_sparsity(
     nlp: cs.Opti, filename: str = "sparsity", raster_threshold: int = 50000
 ):
@@ -1288,7 +1406,7 @@ def plot_sparsity(
     plt.close(fig)
 
 
-#@validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+# @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
 
     with PdfPages(f"{name}.pdf") as pdf:

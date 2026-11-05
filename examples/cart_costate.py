@@ -27,19 +27,13 @@ def cart_costate():
     syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
-    event = syms.get_event()
-    path = syms.get_path()
 
     # initial and final time
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = cs.DM(2)
+    ocp_data["t0"] = 0
+    ocp_data["tf"] = 2
 
     # lagrange and mayer objective
-    ocp_data["L"] = cs.Function(
-        "L",
-        [ts, xs, us],
-        [us**2],
-    )
+    ocp_data["L"] = syms.get_function('L',us**2,'path')
     ocp_data["E"] = None
 
     # event constraints
@@ -49,30 +43,30 @@ def cart_costate():
         - 0.5 * (cs.exp(1) ** 2 - 2) * xfs[1]
         - (-cs.exp(4) + 8 * cs.exp(2) - 23) / 16,
     )
-    zr = cs.DM.zeros(e.shape)
-    ocp_data["e"] = cs.Function("e", event, [e])
-    ocp_data["e_lb"] = zr
-    ocp_data["e_ub"] = zr
+    ocp_data["e"] = syms.get_function('e',e,'event')
+    ocp_data["e_lb"] = [0]*e.numel()
+    ocp_data["e_ub"] = [0]*e.numel()
 
     # dynamics
     f = cs.vcat([xs[1], -xs[1] + us])
-    ocp_data["f"] = cs.Function("fss", path, [f])
+    ocp_data["f"] = syms.get_function('f',f,'path')
+    ocp = Ocp(**ocp_data)
+
 
     disc_data = {}
     disc_data["n"] = 200
     disc_data["method"] = "fw_euler"
     disc = disc_opt(**disc_data)
 
-    ocp = Ocp(**ocp_data)
 
     nlp = cs.Opti()
+    nlp.solver("ipopt")
 
     dis_ocp = generate_NLP(
         ocp,
         nlp,
         disc,
     )
-    nlp.solver("ipopt")
 
     guess_data = {
         "n": disc.n,

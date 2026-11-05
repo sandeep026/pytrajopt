@@ -1,6 +1,7 @@
 import casadi as cs
 
 from pytrajopt import (
+    LinGuess,
     Ocp,
     Syms,
     casadi_integrator,
@@ -8,13 +9,12 @@ from pytrajopt import (
     disc_opt,
     generate_NLP,
     plot_solution,
-    LinGuess
 )
+
 
 def meta():
     data = r"https://web.casadi.org/blog/nlp-scaling/"
     return data
-
 
 
 def rocket():
@@ -25,38 +25,36 @@ def rocket():
     syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
-    event = syms.get_event()
-    path = syms.get_path()
 
     # initial and final time
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = cs.DM(100)
+    ocp_data["t0"] = 0
+    ocp_data["tf"] = 100
 
     # lagrange and mayer objective
-    ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", event, [x0s[-1] - xfs[-1]])
+    ocp_data["E"] = syms.get_function('E',x0s[-1] - xfs[-1],'event')
 
     # event constraints
     e = cs.vertcat(x0s - cs.DM([0, 0, 5e5]), xfs[0] - 1e5)
 
-    ocp_data["e"] = cs.Function("e", event, [e])
-    ocp_data["e_lb"] = cs.vcat([0] * 4)
-    ocp_data["e_ub"] = cs.vcat([0] * 4)
+    ocp_data["e"] = syms.get_function('e',e,'event')
+    ocp_data["e_lb"] = [0] * 4
+    ocp_data["e_ub"] = [0] * 4
 
     g = 9.81
     alp = 1 / (300 * g)
 
     # dynamics
     f = cs.vcat([xs[1], us / xs[2] - g, -alp * us])
-    ocp_data["f"] = cs.Function("fss", path, [f])
+    ocp_data["f"] = syms.get_function('f',f,'path')
 
-    ocp_data["u_lb"] = cs.DM([0.0])
-    ocp_data["x_lb"] = cs.DM([-cs.DM.inf(), -cs.DM.inf(), 0])
+    ocp_data["u_lb"] = [0.0]
+    inf=cs.DM.inf()
+    ocp_data["x_lb"] = [-inf, -inf, 0]
 
-    ocp_data["J_s"] = cs.DM([3e5])
-    ocp_data["x_s"] = cs.DM([1e5, 2e3, 3e5])
-    ocp_data["u_s"] = cs.DM([1e8])
-    ocp_data["e_s"] = cs.DM([1e5, 2e3, 3e5] + [1e5])
+    ocp_data["J_s"] = [3e5]
+    ocp_data["x_s"] = [1e5, 2e3, 3e5]
+    ocp_data["u_s"] = [1e8]
+    ocp_data["e_s"] = [1e5, 2e3, 3e5] + [1e5]
 
     ocp = Ocp(**ocp_data)
 
@@ -91,8 +89,8 @@ def rocket():
         "ul": [0],
         "ur": [0],
     }
-    guess=LinGuess(**guess_data)
-    guess.set_guess(dis_ocp,nlp)    
+    guess = LinGuess(**guess_data)
+    guess.set_guess(dis_ocp, nlp)
 
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "rocket_sol")

@@ -2,6 +2,7 @@ import casadi as cs
 
 from pytrajopt import (
     DynamicMesh,
+    LinGuess,
     Ocp,
     Syms,
     casadi_integrator,
@@ -9,11 +10,11 @@ from pytrajopt import (
     disc_opt,
     generate_NLP,
     plot_solution,
-    LinGuess,
 )
 
+
 def meta():
-    data=r'hen, Weifeng, and Lorenz T. Biegler. “Nested Direct Transcription Optimization for Singular Optimal Control Problems.” AIChE Journal, vol. 62, no. 10, Oct. 2016, pp. 3611–27. DOI.org (Crossref), https://doi.org/10.1002/aic.15272.'
+    data = r"hen, Weifeng, and Lorenz T. Biegler. “Nested Direct Transcription Optimization for Singular Optimal Control Problems.” AIChE Journal, vol. 62, no. 10, Oct. 2016, pp. 3611–27. DOI.org (Crossref), https://doi.org/10.1002/aic.15272."
     return data
 
 
@@ -24,28 +25,18 @@ def lee_ramirez_reactor():
     syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
-    event = syms.get_event()
-    path = syms.get_path()
-    ocp_data["L"] = None
-    ocp_data["E"] = cs.Function("E", event, [-xfs[0] * xfs[3]])
-    ocp_data["e"] = cs.Function(
-        "e",
-        event,
-        [cs.vertcat(x0s - cs.DM([1, 0.1, 40, 0, 0, 1, 0]))],
+    ocp_data["E"] = syms.get_function("E", -xfs[0] * xfs[3], "event")
+    ocp_data["e"] = syms.get_function(
+        "e", cs.vertcat(x0s - cs.DM([1, 0.1, 40, 0, 0, 1, 0])), "event"
     )
-    ocp_data["e_lb"] = cs.DM([0] * 7)
-    ocp_data["e_ub"] = cs.DM([0] * 7)
-    #ocp_data["h"] = cs.Function("h", path, [cs.vertcat(xs[0], xs[2], xs[4])])
-    #inf = cs.DM.inf()
-    #ocp_data["h_lb"] = cs.DM([1e-8] * 3)
-    #ocp_data["h_ub"] = cs.DM([inf] * 3)
-    ocp_data["t0"] = cs.DM(0)
-    ocp_data["tf"] = cs.DM(10)
+    ocp_data["e_lb"] = [0] * 7
+    ocp_data["e_ub"] = [0] * 7
+    ocp_data["t0"] = 0
+    ocp_data["tf"] = 10
 
     c1 = 100.0
     c2 = 0.51
     c3 = 4.0
-
     x1, x2, x3, x4, x5, x6, x7 = (
         xs[0],
         xs[1],
@@ -56,15 +47,12 @@ def lee_ramirez_reactor():
         xs[6],
     )
     u1, u2 = us[0], us[1]
-
     t1 = 14.35 + x3 + (x3**2) / 111.5
     t2 = 0.22 + x5
     t3 = (0.22 * x7) / t2 + x6
-
     g1 = (x3 * t3) / t1
     g2 = (0.233 * x3 * (0.0005 + x5)) / ((0.022 + x5) * t1)
     g3 = (0.09 * x5) / (0.034 + x5)
-
     dyn = cs.vertcat(
         u1 + u2,
         g1 * x2 - ((u1 + u2) * x2) / x1,
@@ -75,18 +63,14 @@ def lee_ramirez_reactor():
         g3 * (1 - x7),
     )
 
-    ocp_data["f"] = cs.Function(
-        "f",
-        path,
-        [dyn],
-    )
+    ocp_data["f"] = syms.get_function("f", dyn, "path")
 
-    inf=cs.DM.inf()
-    ocp_data["x_lb"] = cs.DM([1 ,-inf ,0 ,-inf, 0 ,-inf, -inf])
-    ocp_data["x_ub"] = cs.DM([cs.DM.inf()] * 7)
-    ocp_data["u_lb"] = cs.DM([0, 0])
-    ocp_data["u_ub"] = cs.DM([1, 1])
-    ocp_data['x_s']= cs.DM([1,1,50,1,1,1,1])
+    inf = cs.DM.inf()
+    ocp_data["x_lb"] = [1, -inf, 0, -inf, 0, -inf, -inf]
+    ocp_data["x_ub"] = [cs.DM.inf()] * 7
+    ocp_data["u_lb"] = [0, 0]
+    ocp_data["u_ub"] = [1, 1]
+    ocp_data["x_s"] = [1, 1, 50, 1, 1, 1, 1]
     ocp = Ocp(**ocp_data)
 
     n = 100
@@ -96,7 +80,11 @@ def lee_ramirez_reactor():
     nlp = cs.Opti()
     nlp.solver("ipopt")
 
-    dis_ocp = generate_NLP(ocp, nlp, disc,)
+    dis_ocp = generate_NLP(
+        ocp,
+        nlp,
+        disc,
+    )
 
     guess_data = {
         "n": disc.n,
@@ -107,12 +95,13 @@ def lee_ramirez_reactor():
         "tl": 0,
         "tr": 10,
     }
-    guess=LinGuess(**guess_data)
-    guess.set_guess(dis_ocp,nlp)
+    guess = LinGuess(**guess_data)
+    guess.set_guess(dis_ocp, nlp)
 
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "lee_ramirez_reactor_sol")
     check_feasibility(ocp, dis_ocp, sol, "lee_ramirez_reactor_feas")
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     lee_ramirez_reactor()
