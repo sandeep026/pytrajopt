@@ -17,7 +17,7 @@ $$
 $$
 
 $$
-\dot{\boldsymbol{x}}=\bm{f}(t, \boldsymbol{x}(t), \boldsymbol{u}(t))
+\dot{\boldsymbol{x}}=\boldsymbol{f}(t, \boldsymbol{x}(t), \boldsymbol{u}(t))
 $$
 
 $$
