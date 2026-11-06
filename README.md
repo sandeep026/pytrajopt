@@ -6,6 +6,12 @@
 
 **PyTrajOpt** (Python-based Trajectory Optimization) is a modern Python framework for solving complex optimal control problems (OCPs). Powered by CasADi for high-performance symbolic differentiation and Pydantic for strict runtime configuration validation, PyTrajOpt supports both single-phase and multiphase formulations via multiple shooting and direct collocation. It goes a step further by estimating state costates and performing rigorous feasibility checks to ensure the reliability of your generated solutions.
 
+## OCP
+
+$$
+J[\boldsymbol{x}(\cdot), \boldsymbol{u}(\cdot), t_0, t_f, \boldsymbol{p}] := E(\boldsymbol{x}_0, \boldsymbol{x}_f, t_0, t_f, \boldsymbol{p}) + \int_{t_0}^{t_f} F(\boldsymbol{x}(t), \boldsymbol{u}(t), t, \boldsymbol{p}) \, dt
+$$
+
 ## Example
 Given below is a sample code to solve Brachistochrone problem with scaling applied via direct multiple shooting.
 ```python
