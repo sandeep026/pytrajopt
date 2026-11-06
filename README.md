@@ -30,33 +30,26 @@ $$
 
 ## Example
 
+$$\text{min.} t_f$$
+
 $$
-J = 
-t_f
+\dot{x} = v \sin \theta
 $$
 
 $$
-\begin{bmatrix} 
-0 \\ 0 \\ 0 \\ 0 \\ 0 
-\end{bmatrix} 
-\le 
-\begin{bmatrix} 
-x_1(t_0) \\ x_2(t_0) \\ x_3(t_0) \\ x_1(t_f) - 1000 \\ x_2(t_f) - 1 
-\end{bmatrix} 
-\le 
-\begin{bmatrix} 
-0 \\ 0 \\ 0 \\ 0 \\ 0 
-\end{bmatrix}
+\dot{y} = v \cos \theta
 $$
 
 $$
-\begin{bmatrix} 
-\dot{x}_1 \\ \dot{x}_2 \\ \dot{x}_3 
-\end{bmatrix} 
-= 
-\begin{bmatrix} 
-x_3 \sin(u) \\ x_3 \cos(u) \\ 9.8 \cos(u) 
-\end{bmatrix}
+\dot{v} = g \cos \theta
+$$
+
+$$
+(t_0, x_0, y_0, v_0) = (0, 0, 0, 0)
+$$
+
+$$
+(x_f, y_f) = (1000, 1)
 $$
 
 Given below is a sample code to solve Brachistochrone problem with scaling applied via direct multiple shooting.
