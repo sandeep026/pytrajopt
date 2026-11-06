@@ -9,8 +9,24 @@
 ## OCP
 
 $$
-J[\boldsymbol{x}(\cdot), \boldsymbol{u}(\cdot), t_0, t_f, \boldsymbol{p}] := E(\boldsymbol{x}_0, \boldsymbol{x}_f, t_0, t_f, \boldsymbol{p}) + \int_{t_0}^{t_f} F(\boldsymbol{x}(t), \boldsymbol{u}(t), t, \boldsymbol{p}) \, dt
+J= \int_{t_0}^{t_f} L(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \, dt+ E(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f )   
 $$
+
+$$
+ \boldsymbol{e}_{lb} \leq \boldsymbol{e}(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f ) \leq \boldsymbol{e}_{ub}
+$$
+
+$$
+\dot{\boldsymbol{x}}=\bm{f}(t, \boldsymbol{x}(t), \boldsymbol{u}(t))
+$$
+
+$$
+ \boldsymbol{h}_{lb} \leq \boldsymbol{h}(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \leq \boldsymbol{h}_{ub}
+$$
+
+
+
+
 
 ## Example
 Given below is a sample code to solve Brachistochrone problem with scaling applied via direct multiple shooting.
