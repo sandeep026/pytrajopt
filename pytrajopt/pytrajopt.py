@@ -25,6 +25,14 @@ CURRENT_DIR = Path(__file__).parent
 STYLE_PATH = CURRENT_DIR / "pub_qual.mplstyle"
 plt.style.use(STYLE_PATH)
 
+class Expression(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+    L:cs.SX|None=None
+    E:cs.SX|None=None    
+    f:cs.SX|None=None    
+    e:cs.SX|None=None
+    h:cs.SX|None=None
+
 
 class Syms(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
@@ -32,6 +40,7 @@ class Syms(BaseModel):
     nu: PositiveInt
     _event: list[cs.SX] = PrivateAttr(default_factory=list)
     _path: list[cs.SX] = PrivateAttr(default_factory=list)
+    exps: Expression|None=None
 
     @model_validator(mode="after")
     def create_syms(self) -> "Syms":
@@ -110,9 +119,29 @@ class Syms(BaseModel):
             return cs.Function(name, input, [expression])
         except RuntimeError:
             raise ValueError(
-                "Cannot mix path (t,x,u) and event (t0,tf,x0,xf) variables"
+                f"Cannot mix path (t,x,u) and event (t0,tf,x0,xf) variables in {name}"
             )
 
+    def collect_expression(self,data)->None:
+        if self.exps is not None:
+            print('Overwriting previous expressions')
+        self.exps=Expression(**data)
+
+    def generate_funcs(self)->dict[str:cs.Function]:
+        path=['L','f','h']
+        event=['E','e']
+        func_dict={}
+
+        for name,nature in zip(path,['path']*3):
+            if getattr(self.exps,name) is not None:
+                func_dict[name]=self.get_function(name,getattr(self.exps,name),nature)
+
+
+        for name,nature in zip(event,['event']*2):
+            if getattr(self.exps,name) is not None:
+                func_dict[name]=self.get_function(name,getattr(self.exps,name),nature)
+        
+        return func_dict
 
 class casadi_integrator(BaseModel):
     # provides access to casadi integrators

@@ -32,7 +32,13 @@ def ffrb():
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
 
-    ocp_data["L"] = syms.get_function("L", cs.sum1(us), "path")
+    L= cs.sum1(us)
+    x_initial = cs.DM([-10,-10,cs.pi/2,0,0,0])
+    x_final = cs.DM.zeros(ocp_data["nx"], 1)
+    e = cs.vertcat(
+        x0s - x_initial,
+        xfs - x_final,
+    )
     alpha = 0.2
     beta = 0.2
     thrust = us[0] - us[1] + us[2] - us[3]
@@ -44,36 +50,20 @@ def ffrb():
         thrust * cs.sin(xs[2]),
         alpha * (us[0] - us[1]) - beta * (us[2] - us[3]),
     )
-    ocp_data["f"] = syms.get_function("f", f, "path")
-    x_initial = cs.DM(
-        [
-            -10,
-            -10,
-            np.pi / 2,
-            0,
-            0,
-            0,
-        ]
-    )
-    x_final = cs.DM.zeros(ocp_data["nx"], 1)
-    e = cs.vertcat(
-        x0s - x_initial,
-        xfs - x_final,
-    )
-    ocp_data["e"] = syms.get_function("e", e, "event")
-    ocp_data["e_lb"] = [0] * e.numel()
-    ocp_data["e_ub"] = [0] * e.numel()
     h = cs.vertcat(
         us[0] + us[1],
         us[2] + us[3],
     )
-    ocp_data["h"] = syms.get_function("h", h, "path")
-    ocp_data["h_lb"] = [-cs.DM.inf()] * 2
-    ocp_data["h_ub"] = [1] * 2
 
+    syms.collect_expression({'L':L,'e':e,'f':f,'h':h})
+    ocp_data.update(syms.generate_funcs())    
+    ocp_data["e_lb"] = [0] * e.numel()
+    ocp_data["e_ub"] = [0] * e.numel()
+    inf=cs.DM.inf()
+    ocp_data["h_lb"] = [-inf] * 2
+    ocp_data["h_ub"] = [1] * 2
     ocp_data["u_lb"] = [0] * ocp_data["nu"]
     ocp_data["u_ub"] = [1] * ocp_data["nu"]
-
     ocp = Ocp(**ocp_data)
 
     disc_data = {}

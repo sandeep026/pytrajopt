@@ -1,0 +1,38 @@
+[ocp]
+nx = 3
+nu = 1
+
+# Initial and final time (tf is free, so t0 is fixed at 0)
+t0 = 0
+
+# Function placeholders
+L = "TODO"
+E = "TODO"
+f = "TODO"
+e = "TODO"
+
+# Event constraint bounds (5 constraints total)
+e_lb = [0, 0, 0, 0, 0]
+e_ub = [0, 0, 0, 0, 0]
+
+# Time and constraint upper bounds
+tf_ub = 100
+
+# Scaling parameters
+J_s = 10.0
+t_s = 10.0
+x_s = [1000.0, 160.0, 20.0]
+u_s = [1.0]
+e_s = [1000.0, 160.0, 20.0, 1000.0, 160.0]
+
+[disc]
+n = 20
+method = "rk4"
+
+[guess_data]
+n = 20
+xl = [1.0, 1.0, 1.0]
+xr = [1000.0, 100.0, 300.0]
+ul = [100.0]
+ur = [100.0]
+tr = 25.0
