@@ -118,7 +118,7 @@ if __name__ == "__main__":
     brach()
 ```
 
-<iframe src="./examples/brachistochrone_sol.pdf" width="100%" height="500px"></iframe>
+[View the Brachistochrone Solution PDF](./examples/brachistochrone_sol.pdf)
 
 ## Documentation
 
