@@ -39,7 +39,7 @@ class Syms(BaseModel):
     nu: PositiveInt
     _event: list[cs.SX] = PrivateAttr(default_factory=list)
     _path: list[cs.SX] = PrivateAttr(default_factory=list)
-    exps: Expression|None=None
+    _exps: Expression|None= PrivateAttr(default=None)
 
     @model_validator(mode="after")
     def create_syms(self) -> "Syms":
@@ -122,9 +122,9 @@ class Syms(BaseModel):
             )
 
     def collect_expression(self,data)->None:
-        if self.exps is not None:
+        if self._exps is not None:
             print('Overwriting previous expressions')
-        self.exps=Expression(**data)
+        self._exps=Expression(**data)
 
     def generate_funcs(self)->dict[str,cs.Function]:
         path=['L','f','h']
@@ -132,13 +132,13 @@ class Syms(BaseModel):
         func_dict={}
 
         for name,nature in zip(path,['path']*3):
-            if getattr(self.exps,name) is not None:
-                func_dict[name]=self.get_function(name,getattr(self.exps,name),nature)
+            if getattr(self._exps,name) is not None:
+                func_dict[name]=self.get_function(name,getattr(self._exps,name),nature)
 
 
         for name,nature in zip(event,['event']*2):
-            if getattr(self.exps,name) is not None:
-                func_dict[name]=self.get_function(name,getattr(self.exps,name),nature)
+            if getattr(self._exps,name) is not None:
+                func_dict[name]=self.get_function(name,getattr(self._exps,name),nature)
         
         return func_dict
 
