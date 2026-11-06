@@ -6,6 +6,120 @@
 
 **PyTrajOpt** (Python-based Trajectory Optimization) is a modern Python framework for solving complex optimal control problems (OCPs). Powered by CasADi for high-performance symbolic differentiation and Pydantic for strict runtime configuration validation, PyTrajOpt supports both single-phase and multiphase formulations via multiple shooting and direct collocation. It goes a step further by estimating state costates and performing rigorous feasibility checks to ensure the reliability of your generated solutions.
 
+## OCP
+
+$$
+\text{min.} J= \int_{t_0}^{t_f} L(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \, dt+ E(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f )   
+$$
+
+$$
+ \boldsymbol{e}_{lb} \leq \boldsymbol{e}(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f ) \leq \boldsymbol{e}_{ub}
+$$
+
+$$
+\dot{\boldsymbol{x}}=\boldsymbol{f}(t, \boldsymbol{x}(t), \boldsymbol{u}(t))
+$$
+
+$$
+ \boldsymbol{h}_{lb} \leq \boldsymbol{h}(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \leq \boldsymbol{h}_{ub}
+$$
+
+
+
+
+
+## Example
+
+$$\text{min.} t_f$$
+
+$$
+\dot{x} = v \sin \theta
+$$
+
+$$
+\dot{y} = v \cos \theta
+$$
+
+$$
+\dot{v} = g \cos \theta
+$$
+
+$$
+(t_0, x_0, y_0, v_0) = (0, 0, 0, 0)
+$$
+
+$$
+(x_f, y_f) = (1000, 1)
+$$
+
+Given below is a sample code to solve Brachistochrone problem with scaling applied via direct multiple shooting.
+```python
+import casadi as cs
+
+from pytrajopt import (
+    LinGuess,
+    Ocp,
+    Syms,
+    casadi_integrator,
+    check_feasibility,
+    disc_opt,
+    generate_NLP,
+    plot_solution,
+)
+
+def brach():
+    ocp_data = {}
+    ocp_data["nx"] = 3
+    ocp_data["nu"] = 1
+    syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
+    t0s, tfs, x0s, xfs = syms.get_event()
+    ts, xs, us = syms.get_path()
+    e = cs.vertcat(x0s - cs.DM([0, 0, 0]), xfs[0:2, :] - cs.DM([1e3, 1]))
+    E=tfs
+    g=9.8
+    f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
+    syms.collect_expression({'E':E,'e':e,'f':f})
+    ocp_data.update(syms.generate_funcs())
+    ocp_data["t0"] = 0
+    ocp_data["e_lb"] = [0] * 5
+    ocp_data["e_ub"] = [0] * 5
+    ocp_data["tf_ub"] = 100
+    ocp_data["J_s"] = 10
+    ocp_data["t_s"] = 10
+    ocp_data["x_s"] = [1e3, 160, 20]
+    ocp_data["u_s"] = [1]
+    ocp_data["e_s"] = [1e3, 160, 20] + [1e3, 160]
+    ocp = Ocp(**ocp_data)
+
+    disc_data = {}
+    disc_data["n"] = 20
+    disc_data["method"] = "rk4"
+    disc = disc_opt(**disc_data)
+
+    nlp = cs.Opti()
+    nlp.solver("ipopt")
+    dis_ocp = generate_NLP(ocp, nlp, disc)
+
+    guess_data = {
+        "n": disc.n,
+        "xl": [1, 1, 1],
+        "xr": [1e3, 1e2, 3e2],
+        "ul": [1e2],
+        "ur": [1e2],
+        "tr": 25,
+    }
+    guess = LinGuess(**guess_data)
+    guess.set_guess(dis_ocp, nlp)
+    sol = nlp.solve()
+    plot_solution(sol, dis_ocp, "brachistochrone_sol")
+    check_feasibility(ocp, dis_ocp, sol, "brachistochrone_feas")
+
+if __name__ == "__main__":
+    brach()
+
+```
+
+
 ## Documentation
 
 For more details about problems supported, installation, examples and api references refer to the docs.
