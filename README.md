@@ -116,9 +116,9 @@ def brach():
 
 if __name__ == "__main__":
     brach()
-
 ```
 
+[View the Brachistochrone Solution PDF](./examples/brachistochrone_sol.pdf)
 
 ## Documentation
 
