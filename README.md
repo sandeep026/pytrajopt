@@ -9,7 +9,7 @@
 ## OCP
 
 $$
-J= \int_{t_0}^{t_f} L(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \, dt+ E(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f )   
+\text{min.} J= \int_{t_0}^{t_f} L(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \, dt+ E(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f )   
 $$
 
 $$
@@ -29,6 +29,36 @@ $$
 
 
 ## Example
+
+$$
+J = 
+t_f
+$$
+
+$$
+\begin{bmatrix} 
+0 \\ 0 \\ 0 \\ 0 \\ 0 
+\end{bmatrix} 
+\le 
+\begin{bmatrix} 
+x_1(t_0) \\ x_2(t_0) \\ x_3(t_0) \\ x_1(t_f) - 1000 \\ x_2(t_f) - 1 
+\end{bmatrix} 
+\le 
+\begin{bmatrix} 
+0 \\ 0 \\ 0 \\ 0 \\ 0 
+\end{bmatrix}
+$$
+
+$$
+\begin{bmatrix} 
+\dot{x}_1 \\ \dot{x}_2 \\ \dot{x}_3 
+\end{bmatrix} 
+= 
+\begin{bmatrix} 
+x_3 \sin(u) \\ x_3 \cos(u) \\ 9.8 \cos(u) 
+\end{bmatrix}
+$$
+
 Given below is a sample code to solve Brachistochrone problem with scaling applied via direct multiple shooting.
 ```python
 import casadi as cs
