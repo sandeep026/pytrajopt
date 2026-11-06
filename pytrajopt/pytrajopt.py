@@ -33,7 +33,6 @@ class Expression(BaseModel):
     e:cs.SX|None=None
     h:cs.SX|None=None
 
-
 class Syms(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     nx: PositiveInt
@@ -114,9 +113,9 @@ class Syms(BaseModel):
         ValueError
             path constraints have event variables and vice versa
         """
-        input = self.get_path() if nature == "path" else self.get_event()
+        input_vars = self.get_path() if nature == "path" else self.get_event()
         try:
-            return cs.Function(name, input, [expression])
+            return cs.Function(name, input_vars, [expression])
         except RuntimeError:
             raise ValueError(
                 f"Cannot mix path (t,x,u) and event (t0,tf,x0,xf) variables in {name}"
@@ -127,7 +126,7 @@ class Syms(BaseModel):
             print('Overwriting previous expressions')
         self.exps=Expression(**data)
 
-    def generate_funcs(self)->dict[str:cs.Function]:
+    def generate_funcs(self)->dict[str,cs.Function]:
         path=['L','f','h']
         event=['E','e']
         func_dict={}
