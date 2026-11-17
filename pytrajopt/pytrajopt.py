@@ -33,6 +33,13 @@ class Expression(BaseModel):
     e:cs.SX|None=None
     h:cs.SX|None=None
 
+    @field_validator('L','E')
+    @classmethod
+    def check_scalar(cls,obj:cs.SX|None,info:ValidationInfo)->cs.SX|None:
+        if obj is not None and obj.numel()!=1:
+            raise ValueError(f'{info.field_name} must be scalar but received matrix of shape {obj.shape}')
+
+
 class Syms(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     nx: PositiveInt

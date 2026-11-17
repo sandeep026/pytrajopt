@@ -1,5 +1,7 @@
 import casadi as cs 
 
+# Naming is important for the functions 
+
 #def L(t,x,u):
 #    return 
 #

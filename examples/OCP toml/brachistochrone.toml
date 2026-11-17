@@ -1,9 +1,10 @@
+# Ocp class related inputs
 [ocp]
 nx = 3
 nu = 1
 
-# Initial and final time (tf is free, so t0 is fixed at 0)
 t0 = 0
+# tf not specified is set to none which means free
 
 # Event constraint bounds (5 constraints total)
 e_lb = [0, 0, 0, 0, 0]
@@ -12,7 +13,6 @@ e_ub = [0, 0, 0, 0, 0]
 # Time and constraint upper bounds
 tf_ub = 100
 
-
 # Scaling parameters
 J_s = 10.0
 t_s = 10.0
@@ -20,13 +20,18 @@ x_s = [1000.0, 160.0, 20.0]
 u_s = [1.0]
 e_s = [1000.0, 160.0, 20.0, 1000.0, 160.0]
 
+# L E f e h expressions of the OCP stored in a python module
+# each must be a python callable
 [expressions]
 func_name='expressions_brachistochrone'
 
+# specify method to convert OCP to NLP
 [transcription]
 n = 20
 method = "rk4"
 
+
+# initial guess for newton method (ipopt solver)
 [guess]
 n = 20
 xl = [1.0, 1.0, 1.0]

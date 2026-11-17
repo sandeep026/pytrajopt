@@ -74,4 +74,4 @@ def toml2sol(
     if spar:
         plot_sparsity(nlp, f"{filename}_spar")
 
-    return ocp, disc, guess
+    return ocp, disc, guess, sol
