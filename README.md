@@ -25,8 +25,15 @@ $$
 $$
 
 
+## Prerequisites
 
+Usage of this package requires familiarity with
 
+1. understanding of direct methods for optimal control
+2. solving nonlinear optimization problems
+3. symbolic manipulation of variables in CasADi
+
+To simply code the OCP into pytrajopt, 1 and 2 are not important.
 
 ## Example
 
