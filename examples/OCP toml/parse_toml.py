@@ -7,11 +7,12 @@ import casadi as cs
 
 from pytrajopt import (
     DynamicMesh,
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
     plot_sparsity,
@@ -26,7 +27,7 @@ def toml2sol(
     soln: bool = True,
     feas: bool = True,
     spar: bool = False,
-) -> tuple[Ocp, disc_opt, LinGuess]:
+) -> tuple[Ocp, Transcription, LinGuess]:
 
     with open(SCRIPT_DIR / (filename + ".toml"), "rb") as f:
         data = tomllib.load(f)
@@ -52,7 +53,16 @@ def toml2sol(
     syms.collect_expression(exp)
 
     ocp = Ocp(**data["ocp"] | syms.generate_funcs())
-    disc = disc_opt(**data["transcription"])
+    integrator = Integrator(
+        plugin=data["integrator"]["plugin"],
+        plugin_options=data["integrator"].get("plugin_options", {}),
+        nx=ocp.nx,
+        nu=ocp.nu,
+        path=[ts, xs, us],
+        f=exp["f"],
+    )
+
+    disc = Transcription(n=data["transcription"]["n"], integrator=integrator)
     guess = LinGuess(**data["guess"])
     if data["dynamic_mesh"]:
         mesh = DynamicMesh(**data["dynamic_mesh"])
