@@ -3,19 +3,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pytrajopt import (
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
+from pytrajopt.transcription import Transcription
+
 
 def meta():
-    data=r'Conway, B. A., and K. M. Larson. “Collocation Versus Differential Inclusion in Direct Optimization.” Journal of Guidance, Control, and Dynamics, vol. 21, no. 5, Sept. 1998, pp. 780–85. DOI.org (Crossref), https://doi.org/10.2514/2.4306.'
+    data = r"Conway, B. A., and K. M. Larson. “Collocation Versus Differential Inclusion in Direct Optimization.” Journal of Guidance, Control, and Dynamics, vol. 21, no. 5, Sept. 1998, pp. 780–85. DOI.org (Crossref), https://doi.org/10.2514/2.4306."
     return data
+
 
 def cart_costate():
     # ocp_data
@@ -33,7 +35,7 @@ def cart_costate():
     ocp_data["tf"] = 2
 
     # lagrange and mayer objective
-    ocp_data["L"] = syms.get_function('L',us**2,'path')
+    ocp_data["L"] = syms.get_function("L", us**2, "path")
     ocp_data["E"] = None
 
     # event constraints
@@ -43,21 +45,22 @@ def cart_costate():
         - 0.5 * (cs.exp(1) ** 2 - 2) * xfs[1]
         - (-cs.exp(4) + 8 * cs.exp(2) - 23) / 16,
     )
-    ocp_data["e"] = syms.get_function('e',e,'event')
-    ocp_data["e_lb"] = [0]*e.numel()
-    ocp_data["e_ub"] = [0]*e.numel()
+    ocp_data["e"] = syms.get_function("e", e, "event")
+    ocp_data["e_lb"] = [0] * e.numel()
+    ocp_data["e_ub"] = [0] * e.numel()
 
     # dynamics
     f = cs.vcat([xs[1], -xs[1] + us])
-    ocp_data["f"] = syms.get_function('f',f,'path')
+    ocp_data["f"] = syms.get_function("f", f, "path")
     ocp = Ocp(**ocp_data)
 
-
-    disc_data = {}
-    disc_data["n"] = 200
-    disc_data["method"] = "fw_euler"
-    disc = disc_opt(**disc_data)
-
+    tran_data = {}
+    tran_data["n"] = 200
+    integrator = Integrator(
+        plugin="exp_mid", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+    )
+    tran_data["integrator"] = integrator
+    transcription = Transcription(**tran_data)
 
     nlp = cs.Opti()
     nlp.solver("ipopt")
@@ -65,11 +68,11 @@ def cart_costate():
     dis_ocp = generate_NLP(
         ocp,
         nlp,
-        disc,
+        transcription,
     )
 
     guess_data = {
-        "n": disc.n,
+        "n": transcription.n,
         "xl": [1, 1],
         "xr": [1, 1],
         "ul": [0],
@@ -82,12 +85,12 @@ def cart_costate():
 
     sol = nlp.solve()
 
-    t = np.linspace(0, 2, disc_data["n"] + 1)[1:]
+    t = np.linspace(0, 2, transcription.n + 1)[1:]
     out = [
         sol.value(dis_ocp.dual["lam_f"])[0, :],
-        np.ones(disc_data["n"]),
+        np.ones(transcription.n),
         sol.value(dis_ocp.dual["lam_f"])[1, :],
-        1 - 0.5 * np.exp(np.linspace(0, 2, disc_data["n"])),
+        1 - 0.5 * np.exp(np.linspace(0, 2, transcription.n)),
     ]
     labels = [
         r"$\lambda_1$ (num)",

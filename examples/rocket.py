@@ -1,12 +1,12 @@
 import casadi as cs
 
 from pytrajopt import (
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
@@ -31,12 +31,12 @@ def rocket():
     ocp_data["tf"] = 100
 
     # lagrange and mayer objective
-    ocp_data["E"] = syms.get_function('E',x0s[-1] - xfs[-1],'event')
+    ocp_data["E"] = syms.get_function("E", x0s[-1] - xfs[-1], "event")
 
     # event constraints
     e = cs.vertcat(x0s - cs.DM([0, 0, 5e5]), xfs[0] - 1e5)
 
-    ocp_data["e"] = syms.get_function('e',e,'event')
+    ocp_data["e"] = syms.get_function("e", e, "event")
     ocp_data["e_lb"] = [0] * 4
     ocp_data["e_ub"] = [0] * 4
 
@@ -45,10 +45,10 @@ def rocket():
 
     # dynamics
     f = cs.vcat([xs[1], us / xs[2] - g, -alp * us])
-    ocp_data["f"] = syms.get_function('f',f,'path')
+    ocp_data["f"] = syms.get_function("f", f, "path")
 
     ocp_data["u_lb"] = [0.0]
-    inf=cs.DM.inf()
+    inf = cs.DM.inf()
     ocp_data["x_lb"] = [-inf, -inf, 0]
 
     ocp_data["J_s"] = [3e5]
@@ -58,9 +58,8 @@ def rocket():
 
     ocp = Ocp(**ocp_data)
 
-    disc_data = {}
-    disc_data["n"] = 100
-    disc_data["method"] = casadi_integrator(
+    n = 100
+    integrator = Integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 3,
@@ -75,15 +74,15 @@ def rocket():
         f=f,
     )
 
-    disc = disc_opt(**disc_data)
+    transcription = Transcription(n=n, integrator=integrator)
 
     nlp = cs.Opti()
 
-    dis_ocp = generate_NLP(ocp, nlp, disc)
+    dis_ocp = generate_NLP(ocp, nlp, transcription)
     nlp.solver("ipopt")
 
     guess_data = {
-        "n": disc.n,
+        "n": transcription.n,
         "xl": [0, 0, 1e5],
         "xr": [0, 0, 1e5],
         "ul": [0],

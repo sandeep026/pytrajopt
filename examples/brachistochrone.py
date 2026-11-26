@@ -1,12 +1,12 @@
 import casadi as cs
 
 from pytrajopt import (
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
@@ -43,17 +43,20 @@ def brach():
     # dynamics
     g = 9.8
     f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
-    ocp_data["f"] = syms.get_function('f',f,'path')
+    ocp_data["f"] = syms.get_function("f", f, "path")
 
-    disc_data = {}
+    tran_data = {}
 
-    disc_data["n"] = 20
-    disc_data["method"] = "rk4"
-    #cgl = -cs.hcat(
+    tran_data["n"] = 20
+    integrator = Integrator(
+        plugin="rk4", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+    )
+    tran_data["integrator"] = integrator
+    # cgl = -cs.hcat(
     #    [cs.cos(k * cs.pi / disc_data["n"]) for k in range(disc_data["n"] + 1)]
-    #)
+    # )
     # disc_data['grid']=(0.5)*(1+cgl)
-    disc = disc_opt(**disc_data)
+    transciption = Transcription(**tran_data)
 
     ocp_data["tf_ub"] = 100
 
@@ -68,11 +71,11 @@ def brach():
 
     nlp = cs.Opti()
 
-    dis_ocp = generate_NLP(ocp, nlp, disc)
+    dis_ocp = generate_NLP(ocp, nlp, transciption)
     nlp.solver("ipopt")
 
     guess_data = {
-        "n": disc.n,
+        "n": transciption.n,
         "xl": [1, 1, 1],
         "xr": [1e3, 1e2, 3e2],
         "ul": [1e2],

@@ -1,32 +1,32 @@
 import casadi as cs
-import numpy as np
 
 from pytrajopt import (
+    Integrator,
+    LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
-    check_feasibility,
-    disc_opt,
+    Transcription,
     generate_NLP,
-    pc_interp,
-    plot_solution,
     plot_solution_all_phase,
-    LinGuess,
-    plot_sparsity
+    plot_sparsity,
 )
 
-def meta():    
-    data=r"Ross, I. Michael, and Fariba Fahroo. Pseudospectral Knotting Methods " \
-    "for Solving Nonsmooth Optimal Control Problems. Journal of Guidance, Control, " \
-    "and Dynamics, vol. 27, no. 3, May 2004, pp. 397–405. DOI.org (Crossref), " \
-    "https://doi.org/10.2514/1.3426."
+
+def meta():
+    data = (
+        r"Ross, I. Michael, and Fariba Fahroo. Pseudospectral Knotting Methods "
+        "for Solving Nonsmooth Optimal Control Problems. Journal of Guidance, Control, "
+        "and Dynamics, vol. 27, no. 3, May 2004, pp. 397–405. DOI.org (Crossref), "
+        "https://doi.org/10.2514/1.3426."
+    )
     return data
+
 
 def get_times(id):
     if id == 0:
         t0, tf = 0, None
         return {"t0": t0, "tf": tf}
-    elif id in [1,2]:
+    elif id in [1, 2]:
         t0, tf = None, None
         return {"t0": t0, "tf": tf}
     else:
@@ -46,7 +46,7 @@ def get_mayer(nx, nu, id):
     if id in [0, 1]:
         return {"E": None}
     elif id == 2:
-        return {"E": sym.get_function('E',-xf[0],'event')}
+        return {"E": sym.get_function("E", -xf[0], "event")}
     else:
         raise ValueError("Incorrect ID")
 
@@ -58,7 +58,7 @@ def get_dynamics(nx, nu, id):
         mu, ve = 1.0, 0.5
         r, v, m = x[0, :], x[1, :], x[2, :]
         f = cs.vertcat(v, -mu / (r.T @ r) + u / m, -u / ve)
-        return {"f": sym.get_function('f',f,'path')}
+        return {"f": sym.get_function("f", f, "path")}
     else:
         raise ValueError("Incorrect ID")
 
@@ -70,17 +70,17 @@ def get_event(nx, nu, id):
         e = cs.vertcat(x0 - cs.DM([1.0, 0.0, 1.0]))
         lb = cs.DM.zeros(e.shape)
         ub = cs.DM.zeros(e.shape)
-        return {"e": sym.get_function('e',e,'event'), "e_lb": lb, "e_ub": ub}
+        return {"e": sym.get_function("e", e, "event"), "e_lb": lb, "e_ub": ub}
     elif id == 1:
         e = cs.vertcat(tf - t0, x0[2] - 0.7)
         lb = cs.DM([1e-6, 0])
         ub = cs.DM([100, 0])
-        return {"e": sym.get_function('e',e,'event'), "e_lb": lb, "e_ub": ub}
+        return {"e": sym.get_function("e", e, "event"), "e_lb": lb, "e_ub": ub}
     elif id == 2:
         e = cs.vertcat(xf[2] - 0.5, tf - t0)
         lb = cs.DM([0, 1e-6])
         ub = cs.DM([0, 100])
-        return {"e": sym.get_function('e',e,'event'), "e_lb": lb, "e_ub": ub}
+        return {"e": sym.get_function("e", e, "event"), "e_lb": lb, "e_ub": ub}
     else:
         raise ValueError("Incorrect ID")
 
@@ -135,33 +135,49 @@ def get_simple(name, id):
         raise ValueError("Incorrect ID")
 
 
-def get_disc(id) -> disc_opt:
+def get_disc(id, ocp) -> Transcription:
+    sym = Syms(nx=ocp.nx, nu=ocp.nu)
+    t, x, u = sym.get_path()
+    path = [t, x, u]
+    f = get_dynamics(nx=ocp.nx, nu=ocp.nu, id=id)["f"](t, x, u)
     if id == 0:
-        disc_data = {
-            "n": 15,
-            "method": "exp_mid",
-        }
-        return disc_opt(**disc_data)
+        n = 15
+        integrator = Integrator(
+            plugin="exp_mid",
+            nx=ocp.nx,
+            nu=ocp.nu,
+            path=path,
+            f=f,
+        )
+        return Transcription(n=n, integrator=integrator)
     elif id == 1:
-        disc_data = {
-            "n": 25,
-            "method": "her_sim",
-        }
-        return disc_opt(**disc_data)
+        n = 25
+        integrator = Integrator(
+            plugin="her_sim",
+            nx=ocp.nx,
+            nu=ocp.nu,
+            path=path,
+            f=f,
+        )
+        return Transcription(n=n, integrator=integrator)
     elif id == 2:
-        disc_data = {
-            "n": 30,
-            "method": "trap",
-        }
-        return disc_opt(**disc_data)
+        n = 30
+        integrator = Integrator(
+            plugin="trap",
+            nx=ocp.nx,
+            nu=ocp.nu,
+            path=path,
+            f=f,
+        )
+        return Transcription(n=n, integrator=integrator)
     else:
         raise ValueError("Incorrect phase ID")
 
 
-def get_guess(dis_ocp, nlp: cs.Opti, id):
+def get_guess(ocp: Ocp, dis_ocp, nlp: cs.Opti, id):
     if id == 0:
         guess_data = {
-            "n": get_disc(id).n,
+            "n": get_disc(id, ocp).n,
             "xl": [1, 0, 1],
             "xr": [1.002, 0.02, 0.8],
             "ul": [1.167],
@@ -173,7 +189,7 @@ def get_guess(dis_ocp, nlp: cs.Opti, id):
         guess.set_guess(dis_ocp, nlp)
     elif id == 1:
         guess_data = {
-            "n": get_disc(id).n,
+            "n": get_disc(id, ocp).n,
             "xl": [1.01, 0.08, 1],
             "xr": [1.002, 0.0, 1],
             "ul": [0.5],
@@ -185,7 +201,7 @@ def get_guess(dis_ocp, nlp: cs.Opti, id):
         guess.set_guess(dis_ocp, nlp)
     elif id == 2:
         guess_data = {
-            "n": get_disc(id).n,
+            "n": get_disc(id, ocp).n,
             "xl": [1.002, 0.02, 0.7],
             "xr": [1.01, 0.08, 0.52],
             "ul": [0],
@@ -209,14 +225,14 @@ def create_multiphase_ocp():
     nlp = cs.Opti()
     nlp.solver("ipopt")
     dis_ocps = []
-    #important to add objectives across phases
+    # important to add objectives across phases
     obj = 0
     for i in range(3):
         list_simple = [get_simple(name, i) for name in ["X", "U", "t0", "tf"]]
         ocp_data = {"nx": nx, "nu": nu}
-        ocp_data:dict = ocp_data | (
+        ocp_data: dict = ocp_data | (
             get_times(i)
-            |get_lagrange(**(ip | {"id": i}))
+            | get_lagrange(**(ip | {"id": i}))
             | get_mayer(**(ip | {"id": i}))
             | get_dynamics(**(ip | {"id": i}))
             | get_event(**(ip | {"id": i}))
@@ -224,9 +240,9 @@ def create_multiphase_ocp():
         )
 
         ocp = Ocp(**ocp_data)
-        dis_ocp = generate_NLP(ocp=ocp, nlp=nlp, disc_opt=get_disc(id=i))
+        dis_ocp = generate_NLP(ocp=ocp, nlp=nlp, transcription=get_disc(i, ocp))
         dis_ocps.append(dis_ocp)
-        get_guess(dis_ocp, nlp, i)
+        get_guess(ocp, dis_ocp, nlp, i)
         if i != 0:
             ocp_l = dis_ocps[i - 1]
             ocp_r = dis_ocps[i]
@@ -246,7 +262,7 @@ def create_multiphase_ocp():
     sol = nlp.solve()
 
     plot_solution_all_phase(dis_ocps, sol, "rocket_multiphase")
-    plot_sparsity(nlp,'rocket_multiphase_sparsity')
+    plot_sparsity(nlp, "rocket_multiphase_sparsity")
 
 
 if __name__ == "__main__":

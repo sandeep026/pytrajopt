@@ -1,12 +1,12 @@
 import casadi as cs
 
 from pytrajopt import (
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
@@ -25,10 +25,10 @@ def brach():
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
     e = cs.vertcat(x0s - cs.DM([0, 0, 0]), xfs[0:2, :] - cs.DM([1e3, 1]))
-    E=tfs
-    g=9.8
+    E = tfs
+    g = 9.8
     f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
-    syms.collect_expression({'E':E,'e':e,'f':f})
+    syms.collect_expression({"E": E, "e": e, "f": f})
     ocp_data.update(syms.generate_funcs())
     ocp_data["t0"] = 0
     ocp_data["e_lb"] = [0] * 5
@@ -41,10 +41,13 @@ def brach():
     ocp_data["e_s"] = [1e3, 160, 20] + [1e3, 160]
     ocp = Ocp(**ocp_data)
 
-    disc_data = {}
-    disc_data["n"] = 20
-    disc_data["method"] = "rk4"
-    disc = disc_opt(**disc_data)
+    tran_data = {}
+    tran_data["n"] = 20
+    integrator = Integrator(
+        plugin="rk4", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+    )
+    tran_data["integrator"] = integrator
+    disc = Transcription(**tran_data)
 
     nlp = cs.Opti()
     nlp.solver("ipopt")
@@ -63,6 +66,7 @@ def brach():
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "brachistochrone_sol")
     check_feasibility(ocp, dis_ocp, sol, "brachistochrone_feas")
+
 
 if __name__ == "__main__":
     brach()

@@ -2,19 +2,21 @@ import casadi as cs
 
 from pytrajopt import (
     DynamicMesh,
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
 
+
 def meta():
-    data=r'Ross, I. Michael, et al. “Low-Thrust, High-Accuracy Trajectory Optimization.” Journal of Guidance, Control, and Dynamics, vol. 30, no. 4, July 2007, pp. 921–33. DOI.org (Crossref), https://doi.org/10.2514/1.23181.'
+    data = r"Ross, I. Michael, et al. “Low-Thrust, High-Accuracy Trajectory Optimization.” Journal of Guidance, Control, and Dynamics, vol. 30, no. 4, July 2007, pp. 921–33. DOI.org (Crossref), https://doi.org/10.2514/1.23181."
     return data
+
 
 def low_thrust():
     ocp_data = {}
@@ -30,11 +32,11 @@ def low_thrust():
     ocp_data["tf"] = None
 
     # mayer objective
-    ocp_data["E"] = syms.get_function('E',tfs,'event')
+    ocp_data["E"] = syms.get_function("E", tfs, "event")
 
     # event constraints
     e = cs.vertcat(x0s - cs.DM([1, 0, 0, 1]), xfs[0] - 4, xfs[2:, :] - cs.DM([0, 0.5]))
-    ocp_data["e"] = syms.get_function('e',e,'event')
+    ocp_data["e"] = syms.get_function("e", e, "event")
     ocp_data["e_lb"] = [0] * 7
     ocp_data["e_ub"] = [0] * 7
 
@@ -47,12 +49,24 @@ def low_thrust():
             -xs[2, :] * xs[3, :] / xs[0, :] + us[1, :],
         ]
     )
-    ocp_data["f"] = syms.get_function('f',f,'path')
+    ocp_data["f"] = syms.get_function("f", f, "path")
 
-    disc_data = {}
-    disc_data["n"] = 100
-    disc_data["method"] = "rk4"
-    disc = disc_opt(**disc_data)
+    n = 100
+    integrator = Integrator(
+        plugin="collocation",
+        plugin_options={
+            "interpolation_order": 1,
+            "collocation_scheme": "legendre",
+            "rootfinder": "fast_newton",
+            "number_of_finite_elements": 1,
+            "simplify": True,
+        },
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
+    )
+    transcription = Transcription(n=n, integrator=integrator)
 
     ocp_data["u_lb"] = [-0.01] * 2
     ocp_data["u_ub"] = [0.01] * 2
@@ -68,11 +82,11 @@ def low_thrust():
 
     ocp = Ocp(**ocp_data)
     nlp = cs.Opti()
-    dis_ocp = generate_NLP(ocp, nlp, disc, DynamicMesh(scale=50))
+    dis_ocp = generate_NLP(ocp, nlp, transcription, DynamicMesh(scale=50))
     nlp.solver("ipopt", {}, {"tol": 1e-5})
 
     guess_data = {
-        "n": disc.n,
+        "n": transcription.n,
         "xl": [1, 0, 0, 1],
         "xr": [4, 0, 0, 0.5],
         "ul": [0, 0],

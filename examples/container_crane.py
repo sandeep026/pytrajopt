@@ -1,16 +1,15 @@
 import casadi as cs
-import numpy as np
 
 from pytrajopt import (
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
+from pytrajopt.transcription import Transcription
 
 
 def meta():
@@ -85,18 +84,21 @@ def crane():
     ocp_data["u_lb"] = [-c1, c2]
     ocp_data["u_ub"] = [c1, c3]
 
-    disc_data = {}
-    disc_data["n"] = 100
-    disc_data["method"] = "her_sim"
-    disc = disc_opt(**disc_data)
+    tran_data = {}
+    tran_data["n"] = 100
+    integrator = Integrator(
+        plugin="her_sim", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+    )
+    tran_data["integrator"] = integrator
+    transcription = Transcription(**tran_data)
 
     ocp = Ocp(**ocp_data)
 
     nlp = cs.Opti()
-    dis_ocp = generate_NLP(ocp, nlp, disc)
+    dis_ocp = generate_NLP(ocp, nlp, transcription)
     nlp.solver("ipopt")
     guess_data = {
-        "n": disc.n,
+        "n": transcription.n,
         "xl": [1] * ocp.nx,
         "xr": [1] * ocp.nx,
         "ul": [0] * ocp.nu,

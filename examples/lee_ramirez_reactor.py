@@ -1,13 +1,12 @@
 import casadi as cs
 
 from pytrajopt import (
-    DynamicMesh,
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
@@ -74,8 +73,21 @@ def lee_ramirez_reactor():
     ocp = Ocp(**ocp_data)
 
     n = 100
-    method = "rk4"
-    disc = disc_opt(n=n, method=method)
+    integrator = Integrator(
+        plugin="collocation",
+        plugin_options={
+            "interpolation_order": 1,
+            "collocation_scheme": "legendre",
+            "rootfinder": "fast_newton",
+            "number_of_finite_elements": 1,
+            "simplify": True,
+        },
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=dyn,
+    )
+    disc = Transcription(n=n, integrator=integrator)
 
     nlp = cs.Opti()
     nlp.solver("ipopt")

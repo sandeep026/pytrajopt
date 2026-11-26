@@ -2,12 +2,12 @@ import casadi as cs
 
 from pytrajopt import (
     DynamicMesh,
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
@@ -30,7 +30,7 @@ def shuttle_max_crossrange():
     # Initial and final time
     ocp_data["t0"] = 0
 
-    ocp_data["E"] = syms.get_function('E',-xfs[1],'event')
+    ocp_data["E"] = syms.get_function("E", -xfs[1], "event")
 
     # Event constraints (Initial & Final conditions)
     deg2rad = cs.pi / 180.0
@@ -40,7 +40,7 @@ def shuttle_max_crossrange():
         xfs[2] - 2500.0,
         xfs[3] - (-5.0 * deg2rad),
     )
-    ocp_data["e"] = syms.get_function('e',e,'event')
+    ocp_data["e"] = syms.get_function("e", e, "event")
     ocp_data["e_lb"] = [0] * 8
     ocp_data["e_ub"] = [0] * 8
 
@@ -88,11 +88,11 @@ def shuttle_max_crossrange():
 
     f = cs.vertcat(dh, d_theta, dv, d_gamma, d_psi)
 
-    ocp_data["f"] =  syms.get_function('f',f,'path')
+    ocp_data["f"] = syms.get_function("f", f, "path")
 
     # state bounds
     eps = 1e-8
-    inf=cs.DM.inf()
+    inf = cs.DM.inf()
     ocp_data["x_lb"] = [eps, -89 * deg2rad, 1, -89 * deg2rad, -inf]
     ocp_data["x_ub"] = [inf, 89 * deg2rad, inf, 89 * deg2rad, inf]
 
@@ -113,16 +113,14 @@ def shuttle_max_crossrange():
 
     ocp = Ocp(**ocp_data)
 
-
-    disc_data = {}
-    disc_data["n"] = 40
-    disc_data["method"] = casadi_integrator(
+    n = 40
+    integrator = Integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 3,
             "collocation_scheme": "radau",
             "rootfinder": "kinsol",
-            "number_of_finite_elements": 1,
+            "number_of_finite_elements": 3,
             "simplify": True,
             "error_on_fail": False,
         },
@@ -131,7 +129,7 @@ def shuttle_max_crossrange():
         path=[ts, xs, us],
         f=f,
     )
-    disc = disc_opt(**disc_data)
+    disc = Transcription(n=n, integrator=integrator)
 
     nlp = cs.Opti()
     nlp.solver("ipopt")
@@ -154,6 +152,7 @@ def shuttle_max_crossrange():
     sol = nlp.solve()
     plot_solution(sol, dis_ocp, "shuttle_cross_range_sol")
     check_feasibility(ocp, dis_ocp, sol, "shuttle_cross_range_feas")
+
 
 if __name__ == "__main__":
     shuttle_max_crossrange()

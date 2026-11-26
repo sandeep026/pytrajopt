@@ -1,17 +1,15 @@
 import casadi as cs
-import numpy as np
 
 from pytrajopt import (
     DynamicMesh,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
+from pytrajopt.transcription import Integrator, Transcription
 
 
 def meta():
@@ -32,8 +30,8 @@ def ffrb():
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
 
-    L= cs.sum1(us)
-    x_initial = cs.DM([-10,-10,cs.pi/2,0,0,0])
+    L = cs.sum1(us)
+    x_initial = cs.DM([-10, -10, cs.pi / 2, 0, 0, 0])
     x_final = cs.DM.zeros(ocp_data["nx"], 1)
     e = cs.vertcat(
         x0s - x_initial,
@@ -55,20 +53,20 @@ def ffrb():
         us[2] + us[3],
     )
 
-    syms.collect_expression({'L':L,'e':e,'f':f,'h':h})
-    ocp_data.update(syms.generate_funcs())    
+    syms.collect_expression({"L": L, "e": e, "f": f, "h": h})
+    ocp_data.update(syms.generate_funcs())
     ocp_data["e_lb"] = [0] * e.numel()
     ocp_data["e_ub"] = [0] * e.numel()
-    inf=cs.DM.inf()
+    inf = cs.DM.inf()
     ocp_data["h_lb"] = [-inf] * 2
     ocp_data["h_ub"] = [1] * 2
     ocp_data["u_lb"] = [0] * ocp_data["nu"]
     ocp_data["u_ub"] = [1] * ocp_data["nu"]
     ocp = Ocp(**ocp_data)
 
-    disc_data = {}
-    disc_data["n"] = 50
-    disc_data["method"] = casadi_integrator(
+    trans_data = {}
+    trans_data["n"] = 50
+    trans_data["integrator"] = Integrator(
         plugin="collocation",
         plugin_options={
             "interpolation_order": 1,
@@ -82,7 +80,7 @@ def ffrb():
         path=[ts, xs, us],
         f=f,
     )
-    disc = disc_opt(**disc_data)
+    disc = Transcription(**trans_data)
 
     nlp = cs.Opti()
     nlp.solver("ipopt")
