@@ -14,6 +14,17 @@ CURRENT_DIR = Path(__file__).parent
 STYLE_PATH = CURRENT_DIR / "pub_qual.mplstyle"
 plt.style.use(STYLE_PATH)
 
+import sys
+
+
+def _running_script_dir() -> Path:
+    script_arg = sys.argv[0] if sys.argv else ""
+    if script_arg:
+        script_path = Path(script_arg).resolve()
+        if script_path.exists():
+            return script_path.parent
+    return Path.cwd()
+
 
 # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def pc_interp(t: np.ndarray, U: np.ndarray):
@@ -69,7 +80,7 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
     U = sol.value(dis_ocp.U).reshape(dis_ocp.U.shape)
     lam = sol.value(dis_ocp.dual["lam_f"]).reshape(dis_ocp.dual["lam_f"].shape)
 
-    with PdfPages(f"{name}.pdf") as pdf:
+    with PdfPages(_running_script_dir() / f"{name}.pdf") as pdf:
         for name, var, tvar in zip(["x", "u", r"\lambda"], [X, U, lam], tvars):
             plotting(tvar, var, name, pdf=pdf)
 
@@ -105,7 +116,7 @@ def check_feasibility(
 
     fig, ax = plt.subplots()
 
-    with PdfPages(f"{name}.pdf") as pdf:
+    with PdfPages(_running_script_dir() / f"{name}.pdf") as pdf:
         for i in range(x0.size):
             ax.clear()
             #            plt.figure()
