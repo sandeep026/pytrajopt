@@ -10,6 +10,17 @@ from pydantic import (
 
 
 class LinGuess(BaseModel):
+    """
+    Given lower and upper value for
+    state or control, LinGuess creates a linear
+    interpolation between these values
+
+    equal values of upper and lower values lead to
+    constant guess
+
+    guess for time enforced to be positive
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     n: PositiveInt
     xl: list[float | int]
@@ -89,6 +100,15 @@ class LinGuess(BaseModel):
 
 
 class CusGuess(BaseModel):
+    """
+    a class to supply user defined guess
+
+    the transcription intervals must be passed to
+    check shape of the matrices
+
+    positivity of time guess enforced
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     n: PositiveInt
     Xg: cs.DM | None = None
