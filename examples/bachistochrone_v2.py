@@ -44,7 +44,11 @@ def brach():
     tran_data = {}
     tran_data["n"] = 20
     integrator = Integrator(
-        plugin="rk4", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+        plugin="her_sim_rf",
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
     )
     tran_data["integrator"] = integrator
     disc = Transcription(**tran_data)

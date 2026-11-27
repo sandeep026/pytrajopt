@@ -62,9 +62,12 @@ class Integrator(BaseModel):
         "rk",
         "fw_euler",
         "bw_euler",
+        "bw_euler_rf",
         "exp_mid",
         "trap",
+        "trap_rf",
         "her_sim",
+        "her_sim_rf",
         "rk4",
     ] = "rk4"
     plugin_options: dict = Field(default_factory=dict)
@@ -258,24 +261,30 @@ class Transcription(BaseModel):
         elif self.integrator.plugin == "fw_euler":
             kl = fs(0, xl, p)
             defect = xr - xl - (kl)
-        elif self.integrator.plugin == "bw_euler":
+        elif self.integrator.plugin in ["bw_euler", "bw_euler_rf"]:
             kr = fs(1, xr, p)
             defect = xr - xl - (kr)
-        elif self.integrator.plugin == "trap":
+            if self.integrator.plugin == "bw_euler_rf":
+                defect = Transcription.rf_irk(defect, xl, xr, p)
+        elif self.integrator.plugin in ["trap", "trap_rf"]:
             kl = fs(0, xl, p)
             kr = fs(1, xr, p)
             defect = xr - xl - 0.5 * (kl + kr)
+            if self.integrator.plugin == "trap_rf":
+                defect = Transcription.rf_irk(defect, xl, xr, p)
         elif self.integrator.plugin == "exp_mid":
             xm = xl + 0.5 * fs(0, xl, p)
             km = fs(0.5, xm, p)
             defect = xr - xl - km
-        elif self.integrator.plugin == "her_sim":
+        elif self.integrator.plugin in ["her_sim", "her_sim_rf"]:
             kl = fs(0, xl, p)
             kr = fs(1, xr, p)
             xm = 0.5 * (xr + xl) + 1 / 8 * (kl - kr)
-            tm = 0.5 * (tr + tl)
+            tm = 0.5
             km = fs(tm, xm, p)
             defect = xr - xl - 1 / 6 * (kl + 4 * km + kr)
+            if self.integrator.plugin == "her_sim_rf":
+                defect = Transcription.rf_irk(defect, xl, xr, p)
         elif self.integrator.plugin in ["rk", "cvodes", "collocation"]:
             phi = cs.integrator(
                 "phi",
@@ -289,4 +298,22 @@ class Transcription(BaseModel):
         else:
             raise ValueError("Incorrect numerical method for Integrator")
         defect = cs.Function("defect", [tl, tr, xl, xr, u], [defect])
+        return defect
+
+    @classmethod
+    def rf_irk(cls, defect, xl, xr, p) -> cs.SX:
+        """
+        computes rootfinding problem to express
+        xr as a function of xl
+
+        returns defect xr-phi(xl,u)
+
+        useful to directly estimate costates for
+        irk methods like backward euler, trapezoidal,
+        hermite simpson
+        """
+        xrr = cs.rootfinder(
+            "rf", "newton", {"g": defect, "p": cs.vertcat(p, xl), "x": xr}
+        )(xr, cs.vertcat(p, xl))
+        defect = xr - xrr
         return defect

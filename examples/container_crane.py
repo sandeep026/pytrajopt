@@ -87,7 +87,11 @@ def crane():
     tran_data = {}
     tran_data["n"] = 100
     integrator = Integrator(
-        plugin="her_sim", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+        plugin="trap_rf",
+        nx=ocp_data["nx"],
+        nu=ocp_data["nu"],
+        path=[ts, xs, us],
+        f=f,
     )
     tran_data["integrator"] = integrator
     transcription = Transcription(**tran_data)
