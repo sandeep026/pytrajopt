@@ -13,6 +13,18 @@ from pydantic import (
 
 
 class Expression(BaseModel):
+    """
+    A class which holds the expressions
+    related to the optimal control problem
+    like the lagrange and mayer objective
+    (L,E), dynamics (xd=f), event constraints
+    (<=e(t0,tf,x0,xf)<=) and path (<=h(t,x,u)<=)
+    constraints.
+
+    This class checks type and if the objective is
+    a scalar.
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     L: cs.SX | None = None
     E: cs.SX | None = None
@@ -23,6 +35,9 @@ class Expression(BaseModel):
     @field_validator("L", "E")
     @classmethod
     def check_scalar(cls, obj: cs.SX | None, info: ValidationInfo) -> cs.SX | None:
+        """
+        Objective function related terms must be scalar.
+        """
         if obj is not None and obj.numel() != 1:
             raise ValueError(
                 f"{info.field_name} must be scalar but received matrix of shape {obj.shape}"
@@ -31,6 +46,14 @@ class Expression(BaseModel):
 
 
 class Syms(BaseModel):
+    """
+    Symbolic variables for the defining the optimal
+    control problem problem.
+
+    Generate symbolics for the OCP and convert the
+    expressions to functions.
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     nx: PositiveInt
     nu: PositiveInt
@@ -119,11 +142,18 @@ class Syms(BaseModel):
             )
 
     def collect_expression(self, data) -> None:
+        """
+        store the expressions provided by the user
+        """
         if self._exps is not None:
             print("Overwriting previous expressions")
         self._exps = Expression(**data)
 
     def generate_funcs(self) -> dict[str, cs.Function]:
+        """
+        create a dict of functions based the OCP
+        expressions created
+        """
         path = ["L", "f", "h"]
         event = ["E", "e"]
         func_dict = {}

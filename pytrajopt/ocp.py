@@ -10,6 +10,10 @@ from pydantic import (
 
 
 class Ocp(BaseModel):
+    """
+    Model the optimal control problem
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     # dimensions of state control and discretization intervals
     nx: PositiveInt

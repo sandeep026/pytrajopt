@@ -18,6 +18,11 @@ def generate_NLP(
     transcription: InstanceOf[Transcription],
     mesh: InstanceOf[DynamicMesh] | None = None,
 ):
+    """
+    Given the OCP and transcription methods, this function
+    generates the discrete OCP and associated opti()
+    object
+    """
     n = transcription.n
     nx, nu = ocp.nx, ocp.nu
     constraint = {}

@@ -18,6 +18,9 @@ import sys
 
 
 def _running_script_dir() -> Path:
+    """
+    current working directory where the user script is located
+    """
     script_arg = sys.argv[0] if sys.argv else ""
     if script_arg:
         script_path = Path(script_arg).resolve()
@@ -28,6 +31,11 @@ def _running_script_dir() -> Path:
 
 # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def pc_interp(t: np.ndarray, U: np.ndarray):
+    """
+    piecewise constant interpolation for controls
+
+    handles 1d and 2d arrays
+    """
     if U.ndim == 2:
         U = np.hstack([U, U[:, -1].reshape(-1, 1)])
         axis = 1
@@ -40,6 +48,12 @@ def pc_interp(t: np.ndarray, U: np.ndarray):
 
 # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
+    """
+    piece wise cubic spline interpolation
+
+    handles 1d and 2d arrays
+
+    """
     if X.ndim == 2:
         axis = 1
     else:
@@ -50,6 +64,13 @@ def cubic_spline_interp(t: np.ndarray, X: np.ndarray):
 
 # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
+    """
+    sets up formatting of the plot
+
+    costates ignored for certain discretizations
+
+    step vs line plots for control and state
+    """
     fig, ax = plt.subplots()
     for i in range(var.shape[0]):
         ax.clear()
@@ -72,6 +93,14 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
 
 # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
+    """
+    compute the numerical value of the discrete state,
+    control and costates
+
+    process time for state, costate and control
+
+    save the plots to disc as pdf
+    """
     tx = sol.value(dis_ocp.t)
     tu = tx[0:-1]
     tlam = tx[1:]
@@ -89,6 +118,25 @@ def plot_solution(sol: cs.OptiSol, dis_ocp: DisOcp, name: str = "solution"):
 def check_feasibility(
     ocp: Ocp, dis_ocp: DisOcp, sol: cs.OptiSol, name: str = "feasibility"
 ):
+    """
+    time march solution from NLP using Radau integrator of
+    scipy.integrator.solve_ivp to verfify if time marched
+    solution matches the discrete states
+
+    a very low tolerance for integrator used for accuracy
+
+    results are plotted and saved in a pdf
+
+    conversion of casadi function done to be compatible with scipy
+    ineterface
+
+    control is approximated as a continuous piecewise constant
+    function
+
+    auto diff jacobian provided for Radau integrator
+
+    TODO: return a estimate of the error
+    """
 
     X = sol.value(dis_ocp.X).reshape(ocp.nx, -1)
     U = sol.value(dis_ocp.U).reshape(ocp.nu, -1)
@@ -159,6 +207,10 @@ def check_feasibility(
 def plot_sparsity(
     nlp: cs.Opti, filename: str = "sparsity", raster_threshold: int = 50000
 ):
+    """
+    Prints the sparsity pattern of the
+    Jacobian and Hessian to a pdf
+    """
     x = nlp.x
     f = nlp.f
     g = nlp.g
@@ -185,7 +237,11 @@ def plot_sparsity(
 
 # @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
 def plot_solution_all_phase(dis_ocps: list, sol: cs.OptiSol, name: str = "all"):
-
+    """
+    If problem is multiphase, plots the states and controls
+    of all phases (if shared same states and contros)
+    in a single plot
+    """
     with PdfPages(f"{name}.pdf") as pdf:
         for j in range(3):
             plt.figure()

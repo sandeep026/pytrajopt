@@ -13,6 +13,18 @@ from pydantic import (
 
 
 class DynamicMesh(BaseModel):
+    """
+    discrete time vector is treated as set of
+    decision variables and bounded by
+
+    scale and offset for linear scaling and offset
+
+    k1*(tf-t0)/n <= dt <=  k2*(tf-t0)/N
+
+    if end point time is fixed, they are constrained
+    in the NLP
+    """
+
     scale: float = 1  # >0
     offset: float = 0
     k1: float = 0.1  # >0
@@ -20,6 +32,28 @@ class DynamicMesh(BaseModel):
 
 
 class Integrator(BaseModel):
+    """
+    unified interface for custom integrators
+    and casadi.integrator
+
+    internally converts the ode to a scaled ode
+
+    t0,tf -> 0,1
+
+    In scaled ode time t0,tf treated as control input
+
+    t=t0+(tf-t0)*tau
+    u_s =[u, t0, tf]
+
+    tau is the new time
+
+    dx/dt=f(t,x,u)
+
+    dx/dtau=(tf-t0)f(t0+(tf-t0)*tau,x,u)
+    dx/dtau=(tf-t0)f_s(tau,x,u_s)
+
+    """
+
     # provides access to casadi integrators
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     plugin: Literal[
@@ -184,9 +218,8 @@ class Integrator(BaseModel):
         self._scaled_ode, self._fs = self.get_scaled_dynamics(self.path, self.f)
 
         custom_methods = ["fw_euler", "bw_euler", "exp_mid", "trap", "her_sim", "rk4"]
-        if self.plugin in custom_methods:
-            if self.plugin_options:
-                raise ValueError(f"plugin_options cannot be set for {custom_methods}")
+        if self.plugin in custom_methods and self.plugin_options:
+            raise ValueError(f"plugin_options cannot be set for {custom_methods}")
         return self
 
 
@@ -198,6 +231,14 @@ class Integrator(BaseModel):
 
 
 class Transcription(BaseModel):
+    """
+    All numerical options for transcription
+
+    Generates the defect per interval fucntion
+
+    A fixed custom normalized grid (0,1) can be passed
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
     n: PositiveInt
     integrator: Integrator
@@ -220,6 +261,9 @@ class Transcription(BaseModel):
         return self
 
     def get_defect(self) -> cs.Function:
+        """
+        defect function for different numerical methods
+        """
         fs = self.integrator._fs
         tl = cs.SX.sym("tl", 1, 1)
         tr = cs.SX.sym("tr", 1, 1)
@@ -266,6 +310,6 @@ class Transcription(BaseModel):
             )
             defect = xr - phi(x0=xl, p=p)["xf"]
         else:
-            raise ValueError("Incorrect numerical method for Intergator")
+            raise ValueError("Incorrect numerical method for Integrator")
         defect = cs.Function("defect", [tl, tr, xl, xr, u], [defect])
         return defect
