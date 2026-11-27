@@ -16,6 +16,24 @@
         <loc>https://www.example.com/autoapi/pytrajopt/</loc>
       </url>
       <url>
-        <loc>https://www.example.com/autoapi/pytrajopt/pytrajopt/</loc>
+        <loc>https://www.example.com/autoapi/pytrajopt/costate_estimate/</loc>
+      </url>
+      <url>
+        <loc>https://www.example.com/autoapi/pytrajopt/guess/</loc>
+      </url>
+      <url>
+        <loc>https://www.example.com/autoapi/pytrajopt/model/</loc>
+      </url>
+      <url>
+        <loc>https://www.example.com/autoapi/pytrajopt/ocp/</loc>
+      </url>
+      <url>
+        <loc>https://www.example.com/autoapi/pytrajopt/ocp2nlp/</loc>
+      </url>
+      <url>
+        <loc>https://www.example.com/autoapi/pytrajopt/plots/</loc>
+      </url>
+      <url>
+        <loc>https://www.example.com/autoapi/pytrajopt/transcription/</loc>
       </url>
 </urlset>
