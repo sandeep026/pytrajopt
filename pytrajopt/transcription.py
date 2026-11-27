@@ -131,29 +131,6 @@ class Integrator(BaseModel):
             )
         return f
 
-    def __eq__(self, other: str) -> bool:
-        """
-        casadi_integrator=='casadi_integrator' must return true
-
-        this functionality added to keep Ocp code clean
-
-        Parameters
-        ----------
-        other : str
-            string to be compared against
-
-        Returns
-        -------
-        bool
-            truth value
-        """
-        # If the other object is a string, check if it matches the class name
-        if isinstance(other, str):
-            return self.__class__.__name__ == other
-
-        # Fallback to standard comparison for other object types
-        return super().__eq__(other)
-
     @classmethod
     def get_scaled_dynamics(
         cls, path: list, f: cs.SX
