@@ -35,7 +35,6 @@ def brach():
 
     # event constraints
     e = cs.vertcat(x0s - cs.DM([0, 0, 0]), xfs[0:2, :] - cs.DM([1e3, 1]))
-
     ocp_data["e"] = syms.get_function("e", e, "event")
     ocp_data["e_lb"] = [0] * 5
     ocp_data["e_ub"] = [0] * 5
@@ -45,21 +44,10 @@ def brach():
     f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
     ocp_data["f"] = syms.get_function("f", f, "path")
 
-    tran_data = {}
-
-    tran_data["n"] = 20
-    integrator = Integrator(
-        plugin="rk4", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
-    )
-    tran_data["integrator"] = integrator
-    # cgl = -cs.hcat(
-    #    [cs.cos(k * cs.pi / disc_data["n"]) for k in range(disc_data["n"] + 1)]
-    # )
-    # disc_data['grid']=(0.5)*(1+cgl)
-    transciption = Transcription(**tran_data)
-
+    # simple bounds
     ocp_data["tf_ub"] = 100
 
+    # scale
     ocp_data["J_s"] = 10
     ocp_data["t_s"] = 10
     ocp_data["x_s"] = [1e3, 160, 20]
@@ -69,13 +57,20 @@ def brach():
 
     ocp = Ocp(**ocp_data)
 
+    integrator = Integrator(plugin="rk4", nx=ocp.nx, nu=ocp.nu, path=[ts, xs, us], f=f)
+    # cgl = -cs.hcat(
+    #    [cs.cos(k * cs.pi / disc_data["n"]) for k in range(disc_data["n"] + 1)]
+    # )
+    # disc_data['grid']=(0.5)*(1+cgl)
+    transcription = Transcription(n=20, integrator=integrator)
+
     nlp = cs.Opti()
 
-    dis_ocp = generate_NLP(ocp, nlp, transciption)
+    dis_ocp = generate_NLP(ocp, nlp, transcription)
     nlp.solver("ipopt")
 
     guess_data = {
-        "n": transciption.n,
+        "n": transcription.n,
         "xl": [1, 1, 1],
         "xr": [1e3, 1e2, 3e2],
         "ul": [1e2],

@@ -29,15 +29,18 @@ def generate_NLP(
     if mesh is None:
         if ocp.t0 is None:
             t0 = nlp.variable()
-            nlp.set_linear_scale(t0, ocp.t_s, ocp.t_o)
+            if ocp.t_s is not None and ocp.t_o is not None:
+                nlp.set_linear_scale(t0, ocp.t_s, ocp.t_o)
         else:
             t0 = ocp.t0
         if ocp.tf is None:
             tf = nlp.variable()
-            nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
+            if ocp.t_s is not None and ocp.t_o is not None:
+                nlp.set_linear_scale(tf, ocp.t_s, ocp.t_o)
         else:
             tf = ocp.tf
-        t = t0 + (tf - t0) * transcription.grid
+        if transcription.grid is not None:
+            t = t0 + (tf - t0) * transcription.grid
     else:
         t = nlp.variable(1, transcription.n + 1)
         nlp.set_linear_scale(
@@ -70,9 +73,13 @@ def generate_NLP(
     W = nlp.variable(nx + nu, n)
     Xf = nlp.variable(nx, 1)
     X = cs.horzcat(W[0:nx, :], Xf)
-    nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
+    if ocp.x_s is not None and ocp.x_o is not None:
+        nlp.set_linear_scale(
+            X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1)
+        )
     U = W[nx:, :]
-    nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, n), cs.repmat(ocp.u_o, 1, n))
+    if ocp.u_s is not None and ocp.u_o is not None:
+        nlp.set_linear_scale(U, cs.repmat(ocp.u_s, 1, n), cs.repmat(ocp.u_o, 1, n))
 
     # X = nlp.variable(nx, n + 1)
     # nlp.set_linear_scale(X, cs.repmat(ocp.x_s, 1, n + 1), cs.repmat(ocp.x_o, 1, n + 1))
