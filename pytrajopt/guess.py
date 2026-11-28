@@ -8,6 +8,8 @@ from pydantic import (
     model_validator,
 )
 
+from .ocp import DisOcp
+
 
 class LinGuess(BaseModel):
     """

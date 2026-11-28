@@ -9,11 +9,11 @@
 ## OCP
 
 $$
-\text{min.} J= \int_{t_0}^{t_f} L(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \, dt+ E(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f )   
+\text{min.} J= \int_{t_0}^{t_f} L(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \, dt+ E(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f )
 $$
 
 $$
- \boldsymbol{e}_{lb} \leq \boldsymbol{e}(t_0, t_f,\boldsymbol{x}_0, \boldsymbol{x}_f ) \leq \boldsymbol{e}_{ub}
+ \boldsymbol{e}_{lb} \leq \boldsymbol{e}(t_{0}, t_{f},\boldsymbol{x}_{0}, \boldsymbol{x}_{f} ) \leq \boldsymbol{e}_{ub}
 $$
 
 $$
@@ -23,7 +23,6 @@ $$
 $$
  \boldsymbol{h}_{lb} \leq \boldsymbol{h}(t, \boldsymbol{x}(t), \boldsymbol{u}(t)) \leq \boldsymbol{h}_{ub}
 $$
-
 
 ## Prerequisites
 
@@ -60,16 +59,17 @@ $$
 $$
 
 Given below is a sample code to solve Brachistochrone problem with scaling applied via direct multiple shooting.
+
 ```python
 import casadi as cs
 
 from pytrajopt import (
+    Integrator,
     LinGuess,
     Ocp,
     Syms,
-    casadi_integrator,
+    Transcription,
     check_feasibility,
-    disc_opt,
     generate_NLP,
     plot_solution,
 )
@@ -81,34 +81,54 @@ def brach():
     syms = Syms(nx=ocp_data["nx"], nu=ocp_data["nu"])
     t0s, tfs, x0s, xfs = syms.get_event()
     ts, xs, us = syms.get_path()
-    e = cs.vertcat(x0s - cs.DM([0, 0, 0]), xfs[0:2, :] - cs.DM([1e3, 1]))
-    E=tfs
-    g=9.8
-    f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
-    syms.collect_expression({'E':E,'e':e,'f':f})
-    ocp_data.update(syms.generate_funcs())
+
+    # initial and final time
     ocp_data["t0"] = 0
+    ocp_data["tf"] = None
+
+    # lagrange and mayer objective
+    ocp_data["L"] = None
+    ocp_data["E"] = syms.get_function("E", tfs, "event")
+
+    # event constraints
+    e = cs.vertcat(x0s - cs.DM([0, 0, 0]), xfs[0:2, :] - cs.DM([1e3, 1]))
+
+    ocp_data["e"] = syms.get_function("e", e, "event")
     ocp_data["e_lb"] = [0] * 5
     ocp_data["e_ub"] = [0] * 5
+
+    # dynamics
+    g = 9.8
+    f = cs.vcat([xs[2] * cs.sin(us), xs[2] * cs.cos(us), g * cs.cos(us)])
+    ocp_data["f"] = syms.get_function("f", f, "path")
+
+    tran_data = {}
+
+    tran_data["n"] = 20
+    integrator = Integrator(
+        plugin="rk4", nx=ocp_data["nx"], nu=ocp_data["nu"], path=[ts, xs, us], f=f
+    )
+    tran_data["integrator"] = integrator
+    transciption = Transcription(**tran_data)
+
     ocp_data["tf_ub"] = 100
+
     ocp_data["J_s"] = 10
     ocp_data["t_s"] = 10
     ocp_data["x_s"] = [1e3, 160, 20]
     ocp_data["u_s"] = [1]
     ocp_data["e_s"] = [1e3, 160, 20] + [1e3, 160]
+    ocp_data["h_s"] = None
+
     ocp = Ocp(**ocp_data)
 
-    disc_data = {}
-    disc_data["n"] = 20
-    disc_data["method"] = "rk4"
-    disc = disc_opt(**disc_data)
-
     nlp = cs.Opti()
+
+    dis_ocp = generate_NLP(ocp, nlp, transciption)
     nlp.solver("ipopt")
-    dis_ocp = generate_NLP(ocp, nlp, disc)
 
     guess_data = {
-        "n": disc.n,
+        "n": transciption.n,
         "xl": [1, 1, 1],
         "xr": [1e3, 1e2, 3e2],
         "ul": [1e2],
@@ -121,8 +141,10 @@ def brach():
     plot_solution(sol, dis_ocp, "brachistochrone_sol")
     check_feasibility(ocp, dis_ocp, sol, "brachistochrone_feas")
 
+
 if __name__ == "__main__":
     brach()
+
 ```
 
 [View the Brachistochrone Solution PDF](./examples/brachistochrone_sol.pdf)
@@ -134,6 +156,7 @@ For more details about problems supported, installation, examples and api refere
 ## References
 
 <!-- BEGIN GENERATED REFERENCES -->
+
 1. [ally_chen.py](examples/ally_chen.py) — hen, Weifeng, and Lorenz T. Biegler. “Nested Direct Transcription Optimization for Singular Optimal Control Problems.” AIChE Journal, vol. 62, no. 10, Oct. 2016, pp. 3611–27. DOI.org (Crossref), https://doi.org/10.1002/aic.15272.
 2. [bachistochrone_v2.py](examples/bachistochrone_v2.py) — Ross, I. M., et al. “Scaling and Balancing for High-Performance Computation of Optimal Controls.” Journal of Guidance, Control, and Dynamics, vol. 41, no. 10, Oct. 2018, pp. 2086–97. DOI.org (Crossref), https://doi.org/10.2514/1.G003382.
 3. [brachistochrone.py](examples/brachistochrone.py) — Ross, I. M., et al. “Scaling and Balancing for High-Performance Computation of Optimal Controls.” Journal of Guidance, Control, and Dynamics, vol. 41, no. 10, Oct. 2018, pp. 2086–97. DOI.org (Crossref), https://doi.org/10.2514/1.G003382.
@@ -147,5 +170,5 @@ For more details about problems supported, installation, examples and api refere
 11. [rocket.py](examples/rocket.py) — https://web.casadi.org/blog/nlp-scaling/
 12. [rocket_multiphase.py](examples/rocket_multiphase.py) — Ross, I. Michael, and Fariba Fahroo. Pseudospectral Knotting Methods for Solving Nonsmooth Optimal Control Problems. Journal of Guidance, Control, and Dynamics, vol. 27, no. 3, May 2004, pp. 397–405. DOI.org (Crossref), https://doi.org/10.2514/1.3426.
 13. [shuttle_cross_range.py](examples/shuttle_cross_range.py) — Betts, John T. Practical Methods for Optimal Control and Estimation Using Nonlinear Programming. Second, Society for Industrial and Applied Mathematics, 2010. DOI.org (Crossref), https://doi.org/10.1137/1.9780898718577.
-<!-- END GENERATED REFERENCES -->
 
+<!-- END GENERATED REFERENCES -->

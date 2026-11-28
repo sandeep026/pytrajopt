@@ -4,6 +4,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     PositiveInt,
+    ValidationInfo,
     field_validator,
     model_validator,
 )

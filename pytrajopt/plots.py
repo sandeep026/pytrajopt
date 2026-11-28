@@ -75,9 +75,12 @@ def plotting(t: np.ndarray, var: np.ndarray, name: str, pdf: PdfPages):
     for i in range(var.shape[0]):
         ax.clear()
         if np.isnan(var).all():
-            print(
-                "Costate estimation not implemented for bw_euler, trap and her_sim. Use fw_euler or exp_mid or rk4"
-            )
+            print("Costate estimation not implemented for implicit methods")
+            print("Ignored for bw_euler, trap, her_sim and DynamicMesh")
+            print("Use integrator plugin:")
+            print("fw_euler, exp_mid, rk4")
+            print("bw_euler_rf, trap_rf, her_sim_rf (rootfinder)")
+            print("rk, collocation, cvodes")
             continue
 
         if name == "u":
